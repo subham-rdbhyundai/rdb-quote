@@ -52,6 +52,7 @@ a{color:var(--hy2);text-decoration:none}
 .hint{font-size:11px;color:var(--muted2);font-weight:500;text-transform:none;letter-spacing:0}
 input,select{width:100%;font-family:var(--body);font-size:14px;color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:var(--r-sm);padding:9px 11px;transition:.15s}
 input:focus,select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(0,170,210,.16)}
+input.invalid{border-color:var(--bad)!important;box-shadow:0 0 0 3px rgba(178,59,59,.15)!important}
 select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%235e7188' d='M6 8 0 0h12z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:11px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
 @media(max-width:520px){.row2,.row3{grid-template-columns:1fr}}
@@ -233,7 +234,7 @@ body.readonly .ro-banner{display:flex}
 
   <div class="cbar builder-only no-print">
     <div class="grp"><span class="lab">Prepared by (Consultant)</span><input id="consultant" placeholder="Your name"></div>
-    <div class="grp"><span class="lab">Consultant Mobile</span><input id="consultantPhone" placeholder="10-digit number"></div>
+    <div class="grp"><span class="lab">Consultant Mobile</span><input id="consultantPhone" placeholder="10-digit number" inputmode="numeric" maxlength="10"></div>
     <div class="spacer"></div>
     <div class="qno">Quotation No.<b id="quoteNo">—</b><span id="quoteDate"></span></div>
   </div>
@@ -288,7 +289,7 @@ body.readonly .ro-banner{display:flex}
         <div class="subhead">④ Customer &amp; Finance</div>
         <div class="row2">
           <div class="field"><label>Customer Name</label><input id="custName" placeholder="Customer full name"></div>
-          <div class="field"><label>Customer Mobile</label><input id="custPhone" placeholder="10-digit number"></div>
+          <div class="field"><label>Customer Mobile</label><input id="custPhone" placeholder="10-digit number" inputmode="numeric" maxlength="10"></div>
         </div>
         <div class="row2">
           <div class="field"><label>Down Payment (₹)</label><input id="f_down" type="number" min="0" value="100000"></div>
@@ -358,9 +359,11 @@ try{ if(window.trustedTypes && window.trustedTypes.createPolicy){ window.trusted
 function showLoadError(e){ try{var b=document.getElementById('loadErr'); if(b){ b.style.display='block'; b.textContent='Could not load the quotation tool. Please reload the page.'+((e&&e.message)?(' ('+e.message+')'):''); }}catch(_){} }
 const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzfvv6PVcyhLaMxM6iA3gHQ_ypdHcbOw80M88k0mspF-FzveVU1bAgEKyFpjTIW9EwELw/exec";
 var APPS_SCRIPT_URL = WEB_APP_URL;
-function selfLink(o){return location.origin+location.pathname+"#q="+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(o)))));}
+function b64u(s){return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
+function unb64u(s){s=String(s).replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return decodeURIComponent(escape(atob(s)));}
+function selfLink(o){return location.origin+location.pathname+"#q="+b64u(JSON.stringify(o));}
 function getParam(n){try{return new URLSearchParams(location.search).get(n);}catch(e){return null;}}
-function readHashQuote(){try{var m=/[#&]q=([^&]+)/.exec(location.hash||"");if(!m)return null;return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));}catch(e){return null;}}
+function readHashQuote(){try{var m=/[#&]q=([^&]+)/.exec(location.hash||"");if(!m)return null;return JSON.parse(unb64u(m[1]));}catch(e){return null;}}
 
 /* ===== data ===== */
 let CATALOGUE = [];
@@ -389,6 +392,7 @@ function fieldVal(r,k){return ({model:r.modelDisp,variant:r.variant,fuel:r.fuel,
 function rowsFor(f){return CATALOGUE.filter(r=>Object.entries(f).every(([k,v])=>String(fieldVal(r,k))===String(v)));}
 function uniq(a){return [...new Set(a)];}
 function val(id){var el=document.getElementById(id);return el?(el.value||'').trim():'';}
+function phoneD(id){var el=document.getElementById(id);return el?(el.value||'').replace(/\D/g,''):'';}
 function currentRow(){ if(!S.model||!S.variant)return null; let f={model:S.model,variant:S.variant};
   ['fuel','trans','edition','color'].forEach(k=>{if(S.extra[k]!=null)f[k]=S.extra[k];}); return rowsFor(f)[0]||null; }
 function pmt(rate,n,pv){return rate===0?pv/n:pv*rate/(1-Math.pow(1+rate,-n));}
@@ -555,6 +559,8 @@ function genQuoteNo(){const d=new Date(),p=n=>String(n).padStart(2,'0'),rnd=Math
 function doSave(onOk){const o=buildQuote();
   if(!o){toast('Select a vehicle first',true);return;}
   if(!o.custName){toast('Enter the customer name first',true);return;}
+  var _cp=phoneD('custPhone'); if(_cp.length>0&&_cp.length!==10){toast('Customer mobile must be a valid 10-digit number',true);var _ce=document.getElementById('custPhone');if(_ce)_ce.classList.add('invalid');return;}
+  var _sp=phoneD('consultantPhone'); if(_sp.length>0&&_sp.length!==10){toast('Consultant mobile must be a valid 10-digit number',true);var _se=document.getElementById('consultantPhone');if(_se)_se.classList.add('invalid');return;}
   toast('Saving\u2026');
   var url=selfLink(o);
   function done(){ lastShareUrl=url; showShare(url); toast('Saved to dealership log \u2713'); if(onOk)onOk(url); }
@@ -589,11 +595,16 @@ function waMessage(o,url){
   if(url)m+=`\n\uD83D\uDCC4 *View full quotation & save PDF:*\n${url}\n`;
   m+=`\nPrepared by ${o.consultant||'RDB Hyundai'}${o.consultantPhone?(' ('+o.consultantPhone+')'):''}\nRD Motors Pvt. Ltd. \u2014 RDB Hyundai \u00B7 GSTIN 19AACCR6454J1ZZ`;
   return m;}
-function openWa(o,url){const phone=o.custPhone.replace(/\D/g,'');const base=phone.length>=10?'https://wa.me/91'+phone.slice(-10):'https://wa.me/';
-  window.open(base+'?text='+encodeURIComponent(waMessage(o,url)),'_blank');}
+function openWa(o,url){var phone=(o.custPhone||'').replace(/\D/g,'');var wa=(phone.length>=10?'https://wa.me/91'+phone.slice(-10):'https://wa.me/')+'?text='+encodeURIComponent(waMessage(o,url));
+  var win=window.open(wa,'_blank'); if(!win){ location.href=wa; } }
+function saveQuiet(o){ try{ fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify(o),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(){}).catch(function(){}); }catch(e){} }
 function whatsappFlow(){const o=buildQuote();if(!o){toast('Select a vehicle first',true);return;}
   if(!o.custName){toast('Enter the customer name first',true);return;}
-  doSave(function(url){ openWa(o, url||lastShareUrl); });   // save (logs to sheet) then open WhatsApp with the self-contained link
+  if(phoneD('custPhone').length!==10){toast('Enter a valid 10-digit customer mobile for WhatsApp',true);var _ce=document.getElementById('custPhone');if(_ce)_ce.classList.add('invalid');return;}
+  var url=selfLink(o);
+  openWa(o,url);                 // open synchronously inside the tap so mobile does not block it
+  lastShareUrl=url; showShare(url);
+  saveQuiet(o);                  // log to the dealership sheet in the background
 }
 
 function newQuote(){S={model:null,variant:null,extra:{},roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',exchange:true,scrap:true,poi:true,sambandh:true};
@@ -610,7 +621,8 @@ function toast(m,err){const t=document.getElementById('toast');t.textContent=m;t
 /* ===== init ===== */
 function wireEvents(){
   var byId=function(x){return document.getElementById(x);};
-  ['consultant','consultantPhone','custName','custPhone','f_exch','f_festive','f_down'].forEach(function(id){var el=byId(id);if(el)el.addEventListener('input',render);});
+  ['consultant','custName','f_exch','f_festive','f_down'].forEach(function(id){var el=byId(id);if(el)el.addEventListener('input',render);});
+  ['consultantPhone','custPhone'].forEach(function(id){var el=byId(id);if(el)el.addEventListener('input',function(){var v=(this.value||'').replace(/\D/g,'').slice(0,10);if(v!==this.value)this.value=v;this.classList.toggle('invalid',v.length>0&&v.length<10);render();});});
   var fr=byId('f_rate'); if(fr) fr.addEventListener('change',render);
   byId('f_model').addEventListener('change',onModel);
   byId('f_variant').addEventListener('change',onCascade);
