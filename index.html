@@ -358,8 +358,9 @@ try{ if(window.trustedTypes && window.trustedTypes.createPolicy){ window.trusted
 function showLoadError(e){ try{var b=document.getElementById('loadErr'); if(b){ b.style.display='block'; b.textContent='Could not load the quotation tool. Please reload the page.'+((e&&e.message)?(' ('+e.message+')'):''); }}catch(_){} }
 const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzfvv6PVcyhLaMxM6iA3gHQ_ypdHcbOw80M88k0mspF-FzveVU1bAgEKyFpjTIW9EwELw/exec";
 var APPS_SCRIPT_URL = WEB_APP_URL;
-function shareLink(qn){return location.origin+location.pathname+"?id="+encodeURIComponent(qn);}
+function selfLink(o){return location.origin+location.pathname+"#q="+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(o)))));}
 function getParam(n){try{return new URLSearchParams(location.search).get(n);}catch(e){return null;}}
+function readHashQuote(){try{var m=/[#&]q=([^&]+)/.exec(location.hash||"");if(!m)return null;return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));}catch(e){return null;}}
 
 /* ===== data ===== */
 let CATALOGUE = [];
@@ -555,7 +556,7 @@ function doSave(onOk){const o=buildQuote();
   if(!o){toast('Select a vehicle first',true);return;}
   if(!o.custName){toast('Enter the customer name first',true);return;}
   toast('Saving\u2026');
-  var url=shareLink(o.quoteNo);
+  var url=selfLink(o);
   function done(){ lastShareUrl=url; showShare(url); toast('Saved to dealership log \u2713'); if(onOk)onOk(url); }
   try{
     fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify(o),headers:{'Content-Type':'text/plain;charset=utf-8'}})
@@ -591,9 +592,9 @@ function waMessage(o,url){
 function openWa(o,url){const phone=o.custPhone.replace(/\D/g,'');const base=phone.length>=10?'https://wa.me/91'+phone.slice(-10):'https://wa.me/';
   window.open(base+'?text='+encodeURIComponent(waMessage(o,url)),'_blank');}
 function whatsappFlow(){const o=buildQuote();if(!o){toast('Select a vehicle first',true);return;}
-  if(inAppsScript()){ if(!o.custName){toast('Enter the customer name first',true);return;}
-    doSave(function(url){openWa(o,url);}); }       // save first so the link is logged, then share
-  else { openWa(o,''); toast('Sent without a saved link \u2014 use the live /exec link to include one',true); }}
+  if(!o.custName){toast('Enter the customer name first',true);return;}
+  doSave(function(url){ openWa(o, url||lastShareUrl); });   // save (logs to sheet) then open WhatsApp with the self-contained link
+}
 
 function newQuote(){S={model:null,variant:null,extra:{},roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',exchange:true,scrap:true,poi:true,sambandh:true};
   customAcc=[];pkgAccOn=false;lastShareUrl='';document.getElementById('shareBox').classList.remove('show');
@@ -652,11 +653,12 @@ function boot(d){
 }
 /* if opened via a shared customer link (...?id=Q...), load that saved quote read-only */
 function checkReadonly(){
-  var id=getParam('id'); if(!id)return;
+  var q=readHashQuote(); if(q && q.quoteNo){ enterReadonly(q); return; }
+  var id=getParam('id'); if(!id)return;              // fallback: older short ?id= links
   var cbName='__rdbq_'+Math.floor(Math.random()*1e9);
-  window[cbName]=function(q){ try{delete window[cbName];}catch(_){ window[cbName]=undefined; }
+  window[cbName]=function(qq){ try{delete window[cbName];}catch(_){ window[cbName]=undefined; }
     var sc=document.getElementById(cbName); if(sc&&sc.parentNode)sc.parentNode.removeChild(sc);
-    if(q && q.quoteNo) enterReadonly(q); };
+    if(qq && qq.quoteNo) enterReadonly(qq); };
   var s=document.createElement('script'); s.id=cbName;
   s.src=APPS_SCRIPT_URL+'?id='+encodeURIComponent(id)+'&callback='+cbName;
   s.onerror=function(){ showLoadError({message:'could not load quote '+id}); };
