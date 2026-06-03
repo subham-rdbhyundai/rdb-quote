@@ -745,7 +745,16 @@ function whatsappFlow(){const o=buildQuote();if(!o){toast('Select a vehicle firs
 
 function printFlow(){
   var o=buildQuote();
-  if(o){ var url=selfLink(o); lastShareUrl=url; showShare(url); saveQuiet(o); toast('Saved to dealership log \u2713 \u00b7 customer link ready'); }
+  if(!o){ toast('Select a vehicle first',true); return; }
+  var nm=(o.custName||'').trim(), ph=phoneD('custPhone');
+  if(!nm || ph.length!==10){
+    toast('Enter customer name & 10-digit mobile to save & create the link',true);
+    var ce=document.getElementById('custPhone'); if(ce && ph.length>0 && ph.length<10) ce.classList.add('invalid');
+    setTimeout(function(){ window.print(); }, 60);   /* still allow a plain PDF, but DON'T save or make a link */
+    return;
+  }
+  var url=selfLink(o); lastShareUrl=url; showShare(url); saveQuiet(o);
+  toast('Saved to dealership log \u2713 \u00b7 customer link ready');
   setTimeout(function(){ window.print(); }, 60);
 }
 function newQuote(){S={fuel:S.fuel||null,model:null,variant:null,extra:{},roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',pp:{ew:-1,sot:-1,ss:-1,bc:false},exchange:true,scrap:true,poi:true,sambandh:true};
