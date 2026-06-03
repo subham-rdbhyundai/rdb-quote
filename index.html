@@ -206,6 +206,7 @@ body.readonly .ro-banner{display:flex}
 .print-only{display:none}
 @media print{.cmp-switch{display:none}
   body{background:#fff}.wrap{max-width:none;padding:0}.no-print{display:none !important}
+  #shareBox{display:none !important}
   .grid{display:block}#quoteCard{border:0;box-shadow:none}.print-head{display:flex !important}.print-only{display:block}
   .qtable tr.net td,.qtable tr.pay td,.emi-table th,.card h2,.topbar,.parties .p,.cmp-card.sel{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .parties{display:grid !important}.parties .p,.qfoot{display:block}.compare{display:block !important}
@@ -742,6 +743,11 @@ function whatsappFlow(){const o=buildQuote();if(!o){toast('Select a vehicle firs
   saveQuiet(o);                  // log to the dealership sheet in the background
 }
 
+function printFlow(){
+  var o=buildQuote();
+  if(o){ var url=selfLink(o); lastShareUrl=url; showShare(url); saveQuiet(o); toast('Saved to dealership log \u2713 \u00b7 customer link ready'); }
+  setTimeout(function(){ window.print(); }, 60);
+}
 function newQuote(){S={fuel:S.fuel||null,model:null,variant:null,extra:{},roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',pp:{ew:-1,sot:-1,ss:-1,bc:false},exchange:true,scrap:true,poi:true,sambandh:true};
   customAcc=[];pkgAccOn=false;lastShareUrl='';document.getElementById('shareBox').classList.remove('show');
   ['custName','custPhone'].forEach(id=>document.getElementById(id).value='');
@@ -785,7 +791,7 @@ function wireEvents(){
   ah.addEventListener('click',function(e){var d=e.target.closest?e.target.closest('[data-acc-del]'):null;if(d){customAcc.splice(+d.getAttribute('data-acc-del'),1);renderAcc();render();}});
   byId('btnSave').addEventListener('click',saveAndShare);
   byId('btnWa').addEventListener('click',whatsappFlow);
-  byId('btnPrint').addEventListener('click',function(){window.print();});
+  byId('btnPrint').addEventListener('click',printFlow);
   byId('btnNew').addEventListener('click',newQuote);
   var rp=byId('btnRoPrint'); if(rp) rp.addEventListener('click',function(){window.print();});
   byId('btnCopyShare').addEventListener('click',copyShare);
