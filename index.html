@@ -102,6 +102,14 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 #guideLink{padding:0 18px 16px}
 .guide-btn{display:flex;align-items:center;justify-content:center;gap:8px;text-align:center;border:1.5px solid var(--hy);color:var(--hy);background:#f1f7ff;border-radius:12px;padding:13px 16px;font-weight:700;font-size:13.5px;text-decoration:none;transition:.15s}
 .guide-btn:hover{background:var(--hy);color:#fff}
+.pp-grid{display:flex;flex-direction:column;gap:9px;margin-top:2px}
+.pp-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pp-l{font-size:12.5px;color:#33475b;flex:0 0 auto}
+.pp-row select{flex:1 1 auto;max-width:64%;padding:7px 8px;border:1px solid #cfd8e3;border-radius:8px;background:#fff;font-size:12.5px;color:#0a2540}
+.pp-check label{font-size:12.5px;color:#33475b;display:flex;align-items:center;gap:7px;cursor:pointer;margin:0}
+.pp-check input{width:16px;height:16px;accent-color:var(--hy)}
+.pp-amt{font-weight:700;color:#0a2540;font-size:12.5px}
+.pp-note{font-size:11px;color:#7a8aa0;margin-top:8px;line-height:1.45}
 .cmp-card[data-cmp-var]{cursor:pointer;transition:.15s}
 .cmp-card[data-cmp-var]:hover{border-color:var(--hy);box-shadow:0 5px 16px rgba(0,44,95,.13);transform:translateY(-1px)}
 .cmp-card[data-cmp-var]:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
@@ -273,10 +281,14 @@ body.readonly .ro-banner{display:flex}
           <div class="field"><label>FASTag</label>
             <div class="seg" id="seg_fastag"><button data-v="Y" class="on">Yes (₹1,000)</button><button data-v="N">No</button></div></div>
         </div>
-        <div class="field"><div class="labrow"><label style="margin:0">Shield of Trust (SOT)</label><button class="info-btn" data-info="sot">i</button></div>
-          <div class="seg" id="seg_sot"><button data-v="N" class="on">None</button><button data-v="Y">SOT · 5th Yr / 60K km</button></div></div>
-        <div class="field"><div class="labrow"><label style="margin:0">Extended Warranty (EW)</label><button class="info-btn" data-info="ew">i</button></div>
-          <div class="seg tri" id="seg_ew"><button data-v="N" class="on">None</button><button data-v="4Y">4th Yr / 80K</button><button data-v="5Y">4+5th Yr / 100K</button></div></div>
+                <div class="field"><div class="labrow"><label style="margin:0">Protection Plans <small style="font-weight:600;color:#8497ab">· optional add-ons</small></label><button class="info-btn" data-info="prot">i</button></div>
+          <div class="pp-grid">
+            <div class="pp-row"><span class="pp-l">Extended Warranty</span><select id="pp_ew"><option value="-1">— select a vehicle —</option></select></div>
+            <div class="pp-row"><span class="pp-l">Shield of Trust (SOT)</span><select id="pp_sot"><option value="-1">—</option></select></div>
+            <div class="pp-row"><span class="pp-l">SOT Super (PMS)</span><select id="pp_ss"><option value="-1">—</option></select></div>
+            <div class="pp-row pp-check"><label for="pp_bc"><input type="checkbox" id="pp_bc"> Body Care Package</label><span id="pp_bc_amt" class="pp-amt"></span></div>
+          </div>
+          <div class="pp-note" id="pp_note"></div></div>
         <div class="field"><div class="labrow"><label style="margin:0">Accessories</label><button class="info-btn" data-info="acc">i</button></div>
           <div class="acc-list" id="accList"></div>
           <div class="acc-add"><input id="accName" placeholder="Add accessory (e.g. Floor mats)"><input id="accAmt" class="amtin" type="number" min="0" placeholder="₹ amount"><button class="minibtn" id="accAddBtn">+ Add</button></div></div>
@@ -377,6 +389,9 @@ function readHashQuote(){try{var m=/[#&]q=([^&]+)/.exec(location.hash||"");if(!m
 /* ===== data ===== */
 let CATALOGUE = [];
 const INFO = {
+  prot:{t:"Protection Plans",h:`Optional add-ons quoted on top of the on-road price, matched to the selected model, fuel & transmission:<ul><li><b>Extended Warranty</b> \u2014 covers mechanical/electrical breakdown beyond the standard warranty </li><li><b>Shield of Trust (SOT)</b> \u2014 covers wear & tear of 14 essential parts.</li><li><b>SOT Super</b> \u2014 prepaid periodic maintenance (PMS) package.</li><li><b>Body Care</b> \u2014 minor body-panel repair package.</li></ul>EW, SOT and SOT Super are quoted <b>incl. 18% GST</b>; Body Care is MRP (incl. taxes). Plans use the within-90-days-of-sale slab; the quote shows how much more they cost if booked later.`},
+  sotsuper:{t:"SOT Super (PMS)",h:`Prepaid periodic-maintenance package covering parts, labour, value-added services and wheel alignment/balancing for the chosen duration.`},
+  bodycare:{t:"Body Care Package",h:`Covers repair of minor scratches, dents and small accidental damage to body panels for one year. MRP is inclusive of taxes.`},
   sot:{t:"Hyundai Shield of Trust (SOT)",h:`Comprehensive coverage for <b>wear-and-tear of 14 essential parts</b> a standard insurance policy does <i>not</i> cover.<ul>
     <li>Covers brakes, clutch assembly, wiper blades, drive belts, hoses and more</li><li>Repairs with <b>Hyundai genuine parts</b> at authorised workshops</li>
     <li>Coverage for the <b>5th year or up to 60,000 km</b> (whichever is earlier)</li><li>Protects against unexpected out-of-pocket maintenance costs</li></ul>`},
@@ -389,7 +404,7 @@ const INFO = {
 };
 
 /* ===== state ===== */
-let S={fuel:null,model:null,variant:null,extra:{},roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',exchange:true,scrap:true,poi:true,sambandh:true};
+let S={fuel:null,model:null,variant:null,extra:{},roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',pp:{ew:-1,sot:-1,ss:-1,bc:false},exchange:true,scrap:true,poi:true,sambandh:true};
 let customAcc=[]; let pkgAccOn=false; let quoteNo='',quoteDateStr='',validStr=''; let lastShareUrl='';
 const ROADTAX_LBL={'5Y':'5 Years','LT':'Lifetime','BH':'BH Series'};
 const INS_LBL={'FAO':'Full Add-on','B2B':'B2B','BASIC':'Basic'};
@@ -464,7 +479,7 @@ function calcInsurance(ex,tier,tp){const od=(ex*0.95)*0.03343,ncb=od*0.19;
 function onRoadFor(r){const ex=r.ex,tcs=ex>=1000000?ex*0.01:0,netEx=ex-(r.sch_consumer||0);
   let rt=S.roadtax==='5Y'?ex*0.055+6800:S.roadtax==='LT'?ex*0.10+6800:calcBH(ex,r.fuel,r.bh_taxpct);
   const ins=calcInsurance(ex,S.ins,r.tp||15500),hypo=S.hypo==='Y'?1500:0,fastag=S.fastag==='Y'?1000:0;
-  const sot=S.sot==='Y'?(r.sot||0):0,ew=S.ew==='4Y'?(r.ew4||0):S.ew==='5Y'?(r.ew5||0):0,acc=pkgAccOn?(r.acc||0):0;
+  const sot=0,ew=0,acc=pkgAccOn?(r.acc||0):0;
   const primary=netEx+rt+ins+hypo+fastag+sot+ew+acc;
   const exch=S.exchange?(r.sch_exchange||0):0,scrap=S.scrap?(r.sch_scrap||0):0,poi=S.poi?(r.sch_poi||0):0,samb=S.sambandh?(r.sch_sambandh||0):0;
   return primary+tcs-exch-scrap-poi-samb;}
@@ -477,6 +492,92 @@ function neighbours(sel){
   const idx=list.findIndex(r=>r.variant===sel.variant);
   return {lower:idx>0?list[idx-1]:null,upper:(idx>=0&&idx<list.length-1)?list[idx+1]:null};}
 
+var PROT = {"ewOpts": ["4th Yr / 80K", "5th Yr / 100K", "4th & 5th Yr / 100K", "4th & 5th Yr / 140K", "4th & 5th Yr / 180K", "4th–7th Yr / 140K", "5th–7th Yr / 140K", "6th & 7th Yr / 140K"], "ew": {"Prime": {"CNG-M/T": {"S1": [9099, 9099, 12499, 14499, 22099, 32199, 27399, 22899], "S2": [9599, 9599, 13199, 15299, 23299, 33899, 28799, 24099]}}, "NIOS/Aura": {"Petrol-M/T": {"S1": [8199, 8399, 11399, 13199, null, 28799, 24399, 20299], "S2": [8699, 8899, 11999, 13899, null, 30299, 25699, 21399]}, "Petrol-A/T": {"S1": [9499, 9699, 13199, 15199, null, 33199, 28099, 23399], "S2": [9999, 10199, 13899, 15999, null, 34899, 29599, 24599]}, "CNG-M/T": {"S1": [9099, 9099, 12499, 14499, null, 32199, 27399, 22899], "S2": [9599, 9599, 13199, 15299, null, 33899, 28799, 24099]}}, "Exter": {"Petrol-M/T": {"S1": [8799, 8799, 11999, 13999, null, 30499, 25899, 21599], "S2": [9299, 9299, 12599, 14699, null, 32099, 27199, 22699]}, "Petrol-A/T": {"S1": [10199, 10199, 13799, 16099, null, 35099, 29799, 24899], "S2": [10799, 10799, 14499, 16999, null, 36899, 31299, 26199]}, "CNG-M/T": {"S1": [9799, 9699, 13199, 15399, null, 34199, 29199, 24399], "S2": [10299, 10199, 13899, 16199, null, 35999, 30699, 25699]}}, "i20": {"Petrol-M/T": {"S1": [8899, 9299, 12499, 14499, null, 31899, 27199, 22599], "S2": [9399, 9799, 13199, 15299, null, 33499, 28599, 23799]}, "Petrol-A/T": {"S1": [10299, 10699, 14399, 16699, null, 36699, 31299, 25999], "S2": [10899, 11299, 15199, 17599, null, 38599, 32899, 27299]}}, "Venue": {"Petrol-M/T": {"S1": [10899, 11299, 14699, 17299, null, 38699, 33199, 27699], "S2": [11499, 11899, 15499, 18199, null, 40699, 34899, 29099]}, "Petrol-A/T": {"S1": [12599, 12999, 16999, 19899, null, 44599, 38199, 31899], "S2": [13299, 13699, 17899, 20899, null, 46899, 40199, 33499]}, "Diesel-M/T": {"S1": [11899, 11699, 15599, 18299, null, 52299, 46899, 41799], "S2": [12499, 12299, 16399, 19299, null, 54999, 49299, 43899]}, "Diesel-A/T": {"S1": [13699, 13499, 17999, 21099, null, 60199, 53999, 48099], "S2": [14399, 14199, 18899, 22199, null, 63299, 56699, 50499]}}, "Verna": {"Petrol-M/T": {"S1": [10499, 12299, 15099, 17599, null, 41199, 36199, 30199], "S2": [11099, 12999, 15899, 18499, null, 43299, 38099, 31799]}, "Petrol-A/T": {"S1": [12099, 14199, 17399, 20299, null, 47399, 41699, 34799], "S2": [12799, 14999, 18299, 21399, null, 49799, 43799, 36599]}}, "Creta": {"Petrol-M/T": {"S1": [13499, 13899, 17999, 21199, null, 47999, 41399, 34599], "S2": [14199, 14599, 18899, 22299, null, 50399, 43499, 36399]}, "Petrol-A/T": {"S1": [15599, 15999, 20699, 24399, null, 55199, 47699, 39799], "S2": [16399, 16799, 21799, 25699, null, 57999, 50099, 41799]}, "Diesel-M/T": {"S1": [18299, 17999, 23499, 27899, null, 65999, 59699, 53399], "S2": [19299, 18899, 24699, 29299, null, 69299, 62699, 56099]}, "Diesel-A/T": {"S1": [21099, 20699, 27099, 32099, null, 75899, 68699, 61499], "S2": [22199, 21799, 28499, 33799, null, 79699, 72199, 64599]}}, "Alcazar": {"Petrol-M/T": {"S1": [15399, 15699, 20299, 23899, null, 53899, 46599, 39199], "S2": [16199, 16499, 21399, 25099, null, 56599, 48999, 41199]}, "Petrol-A/T": {"S1": [17799, 18099, 23399, 27499, null, 61999, 53599, 45099], "S2": [18699, 19099, 24599, 28899, null, 65099, 56299, 47399]}, "Diesel-M/T": {"S1": [20699, 20299, 26499, 31399, null, 74499, 67499, 60499], "S2": [21799, 21399, 27899, 32999, null, 78299, 70899, 63599]}, "Diesel-A/T": {"S1": [23899, 23399, 30499, 36199, null, 85699, 77699, 69599], "S2": [25099, 24599, 32099, 38099, null, 89999, 81599, 73099]}}, "CretaEV": {"EV": {"S1": [29899, 33899, 43099, 51099, null, 112999, 97199, 92399], "S2": [31399, 35599, 45299, 53699, null, 118699, 102099, 97099]}}, "IoniqEV": {"EV": {"S1": [35899, 42499, 53599, 63899, null, 156799, 134799, 122499], "S2": [37699, 44699, 56299, 67099, null, 164699, 141599, 128699]}}}, "sotOpts": ["5 Yr / 50K", "4 Yr / 40K", "3 Yr / 30K", "2 Yr / 20K"], "sot": {"Exter": {"Petrol": [35299, 26199, 19599, 11199], "CNG": [39099, 29899, 21499, 13099]}, "Aura": {"Petrol": [34599, 25699, 19199, 10899], "CNG": [38399, 29499, 21199, 12899]}, "Grand i10 Nios": {"Petrol": [34599, 25669, 19199, 10899], "CNG": [38399, 29499, 21199, 12899]}, "Verna": {"Petrol": [44599, 33399, 24899, 14999]}, "Alcazar": {"Petrol": [45699, 34599, 25799, 15899], "Diesel": [48599, 36999, 26999, 16999]}, "Creta": {"Petrol": [44699, 33599, 24999, 15299], "Diesel": [47599, 36299, 26399, 16599]}, "Venue": {"Petrol": [37399, 27999, 20599, 12099], "Diesel": [45499, 34699, 25199, 15599]}, "i20": {"Petrol": [36199, 26899, 19799, 11599]}, "Creta Electric": {"Electric": [23099, 17999, 11599, 6399]}}, "ssOpts": ["5 Yr / 60K", "4 Yr / 60K", "4 Yr / 45K", "3 Yr / 45K", "2 Yr / 40K"], "ss": {"Exter": {"S1": [11199, 8599, 7799, 6799, 5499], "S2": [12499, 9599, 8699, 7599, 6099]}, "Aura": {"S1": [11199, 8599, 7799, 6799, 5499], "S2": [12499, 9599, 8699, 7599, 6099]}, "Verna": {"S1": [35499, 27799, 21199, 15699, 12699], "S2": [39399, 30899, 23599, 17499, 14099]}, "Alcazar": {"S1": [28899, 23399, 18999, 15699, 11299], "S2": [32099, 25999, 21099, 17499, 12599]}, "Creta": {"S1": [28899, 23399, 18999, 15699, 11299], "S2": [32099, 25999, 21099, 17499, 12599]}, "i20": {"S1": [14599, 11299, 9699, 7499, 5799], "S2": [16199, 12599, 10799, 8399, 6499]}, "Creta Electric": {"S1": [25399, 20899, 17399, 14599, 10799], "S2": [28199, 23199, 19299, 16199, 12099]}, "Venue": {"S1": [14399, 11299, 9699, 8599, 5799], "S2": [15999, 12599, 10799, 9599, 6499]}, "Grand i10 Nios": {"S1": [9699, 7799, 6799, 6199, 5499], "S2": [10799, 8699, 7599, 6899, 6099]}}, "bc": {"Creta": 15929, "Ioniq 5": 29699, "Alcazar": 16283, "Venue": 14277, "Exter": 14159, "Verna": 17935, "Aura": 14041, "i20": 14159, "Grand i10 Nios": 13923}};
+
+function ewKeyFor(m){
+  if(/Prime/.test(m)) return 'Prime';
+  if(m==='Grand i10 Nios'||m==='Aura') return 'NIOS/Aura';
+  if(m==='Exter') return 'Exter';
+  if(m==='i20'||m==='i20 N Line') return 'i20';
+  if(m==='Venue'||m==='Venue N Line') return 'Venue';
+  if(m==='Verna') return 'Verna';
+  if(m==='Creta Electric') return 'CretaEV';
+  if(m==='Ioniq 5') return 'IoniqEV';
+  if(m==='Creta'||m==='Creta N Line') return 'Creta';
+  if(m==='Alcazar') return 'Alcazar';
+  return null;}
+function ewFuelRow(fuel,trans){var f=(fuel||'').toUpperCase(),a=(trans==='Automatic');
+  if(f==='EV'||f.indexOf('ELECTRIC')>=0) return 'EV';
+  if(f.indexOf('CNG')>=0) return 'CNG-M/T';
+  if(f.indexOf('DIESEL')>=0) return a?'Diesel-A/T':'Diesel-M/T';
+  return a?'Petrol-A/T':'Petrol-M/T';}
+function sotKeyFor(m){
+  if(m==='Grand i10 Nios') return 'Grand i10 Nios';
+  if(m==='Aura') return 'Aura';
+  if(m==='Exter') return 'Exter';
+  if(m==='i20'||m==='i20 N Line') return 'i20';
+  if(m==='Venue'||m==='Venue N Line') return 'Venue';
+  if(m==='Verna') return 'Verna';
+  if(m==='Creta'||m==='Creta N Line') return 'Creta';
+  if(m==='Alcazar') return 'Alcazar';
+  if(m==='Creta Electric') return 'Creta Electric';
+  return null;}
+function sotFuel(fuel){var f=(fuel||'').toUpperCase();
+  if(f==='EV'||f.indexOf('ELECTRIC')>=0) return 'Electric';
+  if(f.indexOf('CNG')>=0) return 'CNG';
+  if(f.indexOf('DIESEL')>=0) return 'Diesel';
+  return 'Petrol';}
+function ssKeyFor(m){return sotKeyFor(m);}
+function bcKeyFor(m){
+  if(m==='Grand i10 Nios') return 'Grand i10 Nios';
+  if(m==='Aura') return 'Aura';
+  if(m==='Exter') return 'Exter';
+  if(m==='i20'||m==='i20 N Line') return 'i20';
+  if(m==='Venue'||m==='Venue N Line') return 'Venue';
+  if(m==='Verna') return 'Verna';
+  if(m==='Creta'||m==='Creta N Line') return 'Creta';
+  if(m==='Alcazar') return 'Alcazar';
+  if(m==='Ioniq 5') return 'Ioniq 5';
+  return null;}
+var EW_GST=1.18;
+function computeProtection(r){var items=[],total=0,later=0; if(!r) return {items:items,total:0,later:0,saving:0};
+  var m=r.modelDisp;
+  var ek=ewKeyFor(m),ef=ewFuelRow(r.fuel,r.trans);
+  if(S.pp.ew>=0 && PROT.ew[ek] && PROT.ew[ek][ef]){var s1=PROT.ew[ek][ef].S1[S.pp.ew],s2=PROT.ew[ek][ef].S2[S.pp.ew];
+    if(s1!=null){var a=Math.round(s1*EW_GST),l=(s2!=null?Math.round(s2*EW_GST):a);
+      items.push({name:'Extended Warranty',opt:PROT.ewOpts[S.pp.ew],amt:a,later:l});total+=a;later+=l;}}
+  var sk=sotKeyFor(m),sf=sotFuel(r.fuel);
+  if(S.pp.sot>=0 && PROT.sot[sk] && PROT.sot[sk][sf]){var p=PROT.sot[sk][sf][S.pp.sot];
+    if(p!=null){var pg=Math.round(p*1.18);items.push({name:'Shield of Trust (SOT)',opt:PROT.sotOpts[S.pp.sot],amt:pg,later:pg});total+=pg;later+=pg;}}
+  var ssk=ssKeyFor(m);
+  if(S.pp.ss>=0 && PROT.ss[ssk]){var b1=PROT.ss[ssk].S1[S.pp.ss],b2=PROT.ss[ssk].S2[S.pp.ss];
+    if(b1!=null){var g1=Math.round(b1*1.18),gl=Math.round((b2!=null?b2:b1)*1.18);items.push({name:'SOT Super (PMS)',opt:PROT.ssOpts[S.pp.ss],amt:g1,later:gl});total+=g1;later+=gl;}}
+  var bk=bcKeyFor(m);
+  if(S.pp.bc && PROT.bc[bk]!=null){var bcg=PROT.bc[bk];items.push({name:'Body Care Package',opt:'incl taxes',amt:bcg,later:bcg});total+=bcg;later+=bcg;}
+  return {items:items,total:total,later:later,saving:later-total};}
+function ppOpt(v,t,sel){return '<option value="'+v+'"'+(sel?' selected':'')+'>'+t+'</option>';}
+function fillProtection(){var r=currentRow();
+  var ew=document.getElementById('pp_ew'),sot=document.getElementById('pp_sot'),ss=document.getElementById('pp_ss'),bc=document.getElementById('pp_bc'),bcA=document.getElementById('pp_bc_amt'),note=document.getElementById('pp_note');
+  if(!ew) return;
+  if(!r){var none='<option value="-1">\u2014 select a vehicle \u2014</option>';ew.innerHTML=sot.innerHTML=ss.innerHTML=none;ew.disabled=sot.disabled=ss.disabled=true;if(bc){bc.checked=false;bc.disabled=true;}if(bcA)bcA.textContent='';if(note)note.textContent='';return;}
+  ew.disabled=sot.disabled=ss.disabled=false;
+  var m=r.modelDisp;
+  var ek=ewKeyFor(m),ef=ewFuelRow(r.fuel,r.trans),eh='<option value="-1">None</option>',eAvail=PROT.ew[ek]&&PROT.ew[ek][ef];
+  if(eAvail){var ar=PROT.ew[ek][ef].S1;for(var i=0;i<ar.length;i++){if(ar[i]!=null)eh+=ppOpt(i,PROT.ewOpts[i]+' \u2014 '+fmt(Math.round(ar[i]*EW_GST)),S.pp.ew===i);}}
+  if(S.pp.ew>=0 && !(eAvail&&PROT.ew[ek][ef].S1[S.pp.ew]!=null))S.pp.ew=-1;
+  ew.innerHTML=eh;ew.value=S.pp.ew;
+  var sk=sotKeyFor(m),sf=sotFuel(r.fuel),sh='<option value="-1">None</option>',sAvail=PROT.sot[sk]&&PROT.sot[sk][sf];
+  if(sAvail){var a2=PROT.sot[sk][sf];for(var j=0;j<a2.length;j++){if(a2[j]!=null)sh+=ppOpt(j,PROT.sotOpts[j]+' \u2014 '+fmt(Math.round(a2[j]*1.18)),S.pp.sot===j);}}
+  if(S.pp.sot>=0 && !(sAvail&&PROT.sot[sk][sf][S.pp.sot]!=null))S.pp.sot=-1;
+  sot.innerHTML=sh;sot.value=S.pp.sot;
+  var ssk=ssKeyFor(m),ssh='<option value="-1">None</option>',ssAvail=PROT.ss[ssk];
+  if(ssAvail){var b=PROT.ss[ssk].S1;for(var k=0;k<b.length;k++){if(b[k]!=null)ssh+=ppOpt(k,PROT.ssOpts[k]+' \u2014 '+fmt(Math.round(b[k]*1.18)),S.pp.ss===k);}}
+  if(S.pp.ss>=0 && !(ssAvail&&PROT.ss[ssk].S1[S.pp.ss]!=null))S.pp.ss=-1;
+  ss.innerHTML=ssh;ss.value=S.pp.ss;
+  var bk=bcKeyFor(m);
+  if(bc){if(PROT.bc[bk]!=null){bc.disabled=false;if(bcA)bcA.textContent=fmt(PROT.bc[bk]);}else{bc.checked=false;S.pp.bc=false;bc.disabled=true;if(bcA)bcA.textContent='N/A';}bc.checked=S.pp.bc;}
+  if(note)note.innerHTML='Prices matched to this model/fuel. EW, SOT & SOT Super shown incl. 18% GST; Body Care is MRP (incl. taxes). New-car price = within-90-day slab.';}
+
 /* build the full quote object from live inputs (also used for saving) */
 function buildQuote(){const r=currentRow();if(!r)return null;const ex=r.ex;
   const tcs=ex>=1000000?ex*0.01:0,consumer=r.sch_consumer||0,netEx=ex-consumer;
@@ -484,8 +585,8 @@ function buildQuote(){const r=currentRow();if(!r)return null;const ex=r.ex;
   var _rtMan=parseFloat((val('f_roadtax_man')||'').replace(/[^0-9.]/g,'')); var rtOv=!isNaN(_rtMan)&&_rtMan>0; if(rtOv)roadtax=_rtMan;
   var _insCalc=calcInsurance(ex,S.ins,r.tp||15500); var _insMan=parseFloat((val('f_ins_man')||'').replace(/[^0-9.]/g,'')); var insOv=!isNaN(_insMan)&&_insMan>0;
   const ins=insOv?_insMan:_insCalc,hypo=S.hypo==='Y'?1500:0,fastag=S.fastag==='Y'?1000:0;
-  const sot=S.sot==='Y'?(r.sot||0):0,ew=S.ew==='4Y'?(r.ew4||0):S.ew==='5Y'?(r.ew5||0):0;
-  const ai=accInfo(),acc=ai.t,primary=netEx+roadtax+ins+hypo+fastag+sot+ew+acc;
+  const sot=0,ew=0;
+  const ai=accInfo(),acc=ai.t,primary=netEx+roadtax+ins+hypo+fastag+acc;
   const exch=S.exchange?(r.sch_exchange||0):0,scrap=S.scrap?(r.sch_scrap||0):0,poi=S.poi?(r.sch_poi||0):0,samb=S.sambandh?(r.sch_sambandh||0):0;
   const netOnRoad=primary+tcs-exch-scrap-poi-samb;
   const exchCar=+val('f_exch')||0,festive=+val('f_festive')||0,netPayable=netOnRoad-exchCar-festive;
@@ -494,13 +595,14 @@ function buildQuote(){const r=currentRow();if(!r)return null;const ex=r.ex;
   const _dn=+val('f_down')||0,_rt=+val('f_rate')||0.085,_n=60;
   const mkC=row=>{if(!row)return null;const or=Math.round(onRoadFor(row));return {label:row.variant,ex:row.ex,onroad:or,emi:Math.round(pmt(_rt/12,_n,Math.max(0,or-_dn)))};};
   const compare={fuel:r.fuel,trans:r.trans,refN:_n,sel:mkC(r),lower:mkC(nb.lower),upper:mkC(nb.upper)};
+  const _prot=computeProtection(r);
   return {quoteNo,date:quoteDateStr,valid:validStr,
     consultant:val('consultant'),consultantPhone:val('consultantPhone'),custName:val('custName'),custPhone:val('custPhone'),
     model:r.modelDisp,variant:r.variant,carName:r.modelDisp+' '+r.variant,fullDesc,
     ex,consumer,netEx,roadtax,roadtaxLabel:(rtOv?'Manual entry':ROADTAX_LBL[S.roadtax]),ins,insLabel:(insOv?'Manual entry':INS_LBL[S.ins]),
     hypoOn:S.hypo==='Y',hypo,fastagOn:S.fastag==='Y',fastag,sotOn:S.sot==='Y',sot,sotLabel:'5th Yr/60K',
     ewKey:S.ew,ew,ewLabel:S.ew==='4Y'?'4Y/80K':S.ew==='5Y'?'4+5Y/100K':'',acc,accItems:ai.items,
-    primary,tcs,exch,scrap,poi,samb,netOnRoad,exchCar,festive,netPayable,compare,
+    primary,tcs,exch,scrap,poi,samb,netOnRoad,exchCar,festive,netPayable,compare,protection:_prot,
     down:+val('f_down')||0,rate:+val('f_rate')};}
 
 /* ===== paint (used by both live + read-only) ===== */
@@ -533,8 +635,6 @@ function paintQuote(o){
   h+=line('Insurance',fmt(o.ins),o.insLabel);
   h+=line('Hypothecation (Finance)',o.hypoOn?fmt(o.hypo):'NIL');
   h+=line('FASTag',o.fastagOn?fmt(o.fastag):'NIL');
-  h+=line('Shield of Trust (SOT)',o.sotOn?fmt(o.sot):'NIL',o.sotOn?o.sotLabel:'');
-  h+=line('Extended Warranty',o.ew>0?fmt(o.ew):'NIL',o.ewLabel);
   h+=line('Accessories',o.acc>0?fmt(o.acc):'NIL');
   h+=`<tr class="sub"><td>Primary On-Road Value</td><td class="amt">${fmt(o.primary)}</td></tr>`;
   h+=line('Add: TCS',o.tcs>0?fmt(o.tcs):'NIL',o.tcs>0?'1% (ex \u2265 \u20B910L)':'');
@@ -546,6 +646,12 @@ function paintQuote(o){
   if(o.exchCar>0)h+=ded('Exchange Car Value',o.exchCar);
   if(o.festive>0)h+=ded('Festive Additional Offer',o.festive);
   h+=`<tr class="pay"><td>Net Payable Value</td><td class="amt">${fmt(o.netPayable)}</td></tr>`;
+  if(o.protection&&o.protection.items&&o.protection.items.length){
+    h+='<tr class="sub"><td>Optional Protection Plans</td><td class="amt"></td></tr>';
+    o.protection.items.forEach(function(it){h+=line(it.name,fmt(it.amt),it.opt);});
+    h+='<tr class="net"><td>Total incl. Protection Plans</td><td class="amt">'+fmt(o.netPayable+o.protection.total)+'</td></tr>';
+    if(o.protection.saving>0)h+='<tr><td colspan="2" style="padding:7px 18px;font-size:11.5px;color:#1f7a4d;background:#f3fbf6">Booked within 90 days of sale. After 90 days these plans would cost '+fmt(o.protection.later)+' (\u002b'+fmt(o.protection.saving)+').</td></tr>';
+  }
   document.getElementById('q_rows').innerHTML=h;
   // variant comparison (visible only in print + read-only shared view via CSS)
   const cb=document.getElementById('compareBlock');
@@ -569,7 +675,7 @@ function paintQuote(o){
   // live: bonus labels
   ['exchange:sch_exchange','scrap:sch_scrap','poi:sch_poi','sambandh:sch_sambandh'].forEach(p=>{const[k,f]=p.split(':');const el=document.getElementById('amt_'+k);if(el)el.textContent=r?'  '+fmt(r[f]||0):'';});
 }
-function render(){paintQuote(buildQuote());}
+function render(){fillProtection();paintQuote(buildQuote());}
 
 /* ===== info modal ===== */
 function openInfo(k){document.getElementById('mTitle').textContent=INFO[k].t;document.getElementById('mBody').innerHTML=INFO[k].h;document.getElementById('modalBg').classList.add('show');}
@@ -612,12 +718,14 @@ function waMessage(o,url){
   m+=`Insurance (${o.insLabel}): ${fmt(o.ins)}\n`;
   if(o.hypoOn)m+=`Hypothecation: ${fmt(o.hypo)}\n`;
   if(o.fastagOn)m+=`FASTag: ${fmt(o.fastag)}\n`;
-  if(o.sotOn)m+=`Shield of Trust: ${fmt(o.sot)}\n`;
-  if(o.ew>0)m+=`Extended Warranty: ${fmt(o.ew)}\n`;
   if(o.acc>0)m+=`Accessories: ${fmt(o.acc)}\n`;
   if(o.tcs>0)m+=`TCS: ${fmt(o.tcs)}\n`;
   const tb=o.exch+o.scrap+o.poi+o.samb;if(tb>0)m+=`Total Bonus: \u2013 ${fmt(tb)}\n`;
   m+=`\n*Net On-Road: ${fmt(o.netOnRoad)}*\n*Net Payable: ${fmt(o.netPayable)}*\n`;
+  if(o.protection&&o.protection.items&&o.protection.items.length){m+=`\n*Optional Protection Plans:*\n`;
+    o.protection.items.forEach(function(it){m+=it.name+' ('+it.opt+'): '+fmt(it.amt)+'\n';});
+    m+=`*Total incl. Plans: ${fmt(o.netPayable+o.protection.total)}*\n`;
+    if(o.protection.saving>0)m+=`(Within-90-day price \u2014 saves ${fmt(o.protection.saving)} vs after 90 days)\n`;}
   const loan=Math.max(0,o.netOnRoad-o.down);m+=`\nIndicative EMI @ ${(o.rate*100).toFixed(2)}% (loan ${fmt(loan)}):\n60 mo \u2248 ${fmt(pmt(o.rate/12,60,loan))} \u00B7 84 mo \u2248 ${fmt(pmt(o.rate/12,84,loan))}\n`;
   if(url)m+=`\n\uD83D\uDCC4 *View full quotation & save PDF:*\n${url}\n`;
   m+=`\nPrepared by ${o.consultant||'RDB Hyundai'}${o.consultantPhone?(' ('+o.consultantPhone+')'):''}\nRD Motors Pvt. Ltd. \u2014 RDB Hyundai \u00B7 GSTIN 19AACCR6454J1ZZ`;
@@ -634,12 +742,12 @@ function whatsappFlow(){const o=buildQuote();if(!o){toast('Select a vehicle firs
   saveQuiet(o);                  // log to the dealership sheet in the background
 }
 
-function newQuote(){S={fuel:S.fuel||null,model:null,variant:null,extra:{},roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',exchange:true,scrap:true,poi:true,sambandh:true};
+function newQuote(){S={fuel:S.fuel||null,model:null,variant:null,extra:{},roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',pp:{ew:-1,sot:-1,ss:-1,bc:false},exchange:true,scrap:true,poi:true,sambandh:true};
   customAcc=[];pkgAccOn=false;lastShareUrl='';document.getElementById('shareBox').classList.remove('show');
   ['custName','custPhone'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_exch').value=0;document.getElementById('f_festive').value=0;document.getElementById('f_down').value=100000;
   var _rm=document.getElementById('f_roadtax_man');if(_rm)_rm.value='';var _im=document.getElementById('f_ins_man');if(_im)_im.value='';
-  ['roadtax','ins','hypo','fastag','sot','ew'].forEach(g=>document.querySelectorAll('#seg_'+g+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===S[g])));
+  ['roadtax','ins','hypo','fastag'].forEach(g=>document.querySelectorAll('#seg_'+g+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===S[g])));
   ['exchange','scrap','poi','sambandh'].forEach(k=>{document.getElementById('chk_'+k).classList.add('on');document.querySelector('#chk_'+k+' input').checked=true;});
   fillFuels();fillModels();document.getElementById('f_model').value='';document.getElementById('f_variant').innerHTML='';document.getElementById('cascadeExtra').innerHTML='';
   genQuoteNo();renderAcc();render();toast('New blank quotation started');}
@@ -665,7 +773,11 @@ function wireEvents(){
     cbh.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick(e.target);}});
   })();
   byId('accAddBtn').addEventListener('click',addAcc);
-  ['roadtax','ins','hypo','fastag','sot','ew'].forEach(function(g){var c=byId('seg_'+g);if(c)c.addEventListener('click',function(e){var b=e.target.closest?e.target.closest('button[data-v]'):null;if(b)setSeg(g,b.getAttribute('data-v'));});});
+  ['roadtax','ins','hypo','fastag'].forEach(function(g){var c=byId('seg_'+g);if(c)c.addEventListener('click',function(e){var b=e.target.closest?e.target.closest('button[data-v]'):null;if(b)setSeg(g,b.getAttribute('data-v'));});});
+  var ppe=byId('pp_ew');if(ppe)ppe.addEventListener('change',function(){S.pp.ew=parseInt(this.value,10);render();});
+  var pps=byId('pp_sot');if(pps)pps.addEventListener('change',function(){S.pp.sot=parseInt(this.value,10);render();});
+  var ppx=byId('pp_ss');if(ppx)ppx.addEventListener('change',function(){S.pp.ss=parseInt(this.value,10);render();});
+  var ppb=byId('pp_bc');if(ppb)ppb.addEventListener('change',function(){S.pp.bc=this.checked;render();});
   ['exchange','scrap','poi','sambandh'].forEach(function(k){var el=document.querySelector('#chk_'+k+' input');if(el)el.addEventListener('change',function(){toggleChk(k);});});
   byId('cascadeExtra').addEventListener('change',function(e){var s=e.target;if(s&&s.getAttribute&&s.getAttribute('data-k'))setExtra(s.getAttribute('data-k'),s.value);});
   var ah=byId('accList');
