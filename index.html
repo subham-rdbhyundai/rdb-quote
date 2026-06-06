@@ -394,7 +394,9 @@ const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzfvv6PVcyhLaMxM6iA
 var APPS_SCRIPT_URL = WEB_APP_URL;
 function b64u(s){return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
 function unb64u(s){s=String(s).replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return decodeURIComponent(escape(atob(s)));}
-function selfLink(o){return location.origin+location.pathname+"?id="+encodeURIComponent(o.quoteNo||quoteNo||"");}
+function quoteState(){return {__v:2,S:S,I:{custName:val("custName"),custPhone:val("custPhone"),consultant:val("consultant"),consultantPhone:val("consultantPhone"),f_exch:val("f_exch"),f_festive:val("f_festive"),f_down:val("f_down"),f_rate:val("f_rate"),f_roadtax_man:val("f_roadtax_man"),f_ins_man:val("f_ins_man")},ca:customAcc,pk:pkgAccOn,qn:quoteNo,qd:quoteDateStr,vs:validStr};}
+function applyState(p){try{if(p.S)S=p.S;quoteNo=p.qn||quoteNo;quoteDateStr=p.qd||quoteDateStr;validStr=p.vs||validStr;customAcc=Array.isArray(p.ca)?p.ca:[];pkgAccOn=!!p.pk;if(p.I){Object.keys(p.I).forEach(function(k){var el=document.getElementById(k);if(el)el.value=p.I[k];});}return true;}catch(e){return false;}}
+function selfLink(o){return location.origin+location.pathname+"#q="+b64u(JSON.stringify(quoteState()));}
 function getParam(n){try{return new URLSearchParams(location.search).get(n);}catch(e){return null;}}
 function readHashQuote(){try{var m=/[#&]q=([^&]+)/.exec(location.hash||"");if(!m)return null;return JSON.parse(unb64u(m[1]));}catch(e){return null;}}
 
@@ -836,7 +838,9 @@ function boot(d){
 }
 /* if opened via a shared customer link (...?id=Q...), load that saved quote read-only */
 function checkReadonly(){
-  var q=readHashQuote(); if(q && q.quoteNo){ enterReadonly(q); return; }
+  var q=readHashQuote();
+  if(q){ if(q.__v===2){ applyState(q); document.body.classList.add('readonly'); try{fillProtection();}catch(_){ } paintQuote(buildQuote()); try{window.scrollTo(0,0);}catch(_){ } return; }
+         if(q.quoteNo){ enterReadonly(q); return; } }
   var id=getParam('id'); if(!id)return;              // fallback: older short ?id= links
   var cbName='__rdbq_'+Math.floor(Math.random()*1e9);
   window[cbName]=function(qq){ try{delete window[cbName];}catch(_){ window[cbName]=undefined; }
