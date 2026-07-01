@@ -308,10 +308,9 @@ body.readonly .ro-banner{display:flex}
           <label class="chk" id="chk_poi"><input type="checkbox"><span>Government / POI<small id="amt_poi"></small></span></label>
           <label class="chk" id="chk_sambandh"><input type="checkbox"><span>Rural / Sambandh<small id="amt_sambandh"></small></span></label>
           <label class="chk" id="chk_corp"><input type="checkbox"><span>Corporate<small id="amt_corp"></small></span></label>
-          <label class="chk" id="chk_t2to4"><input type="checkbox"><span>2-To-4 (2-wheeler owner)<small id="amt_t2to4"></small></span></label>
           <label class="chk" id="chk_upgrade"><input type="checkbox"><span>Upgrade Bonus<small id="amt_upgrade"></small></span></label>
         </div>
-        <div class="hint" style="margin-top:8px">Note: per Hyundai scheme a customer may avail <b>either</b> Exchange <b>or</b> Scrappage, and only <b>one</b> of Government / Corporate / Rural. 2-To-4 &amp; Upgrade can be clubbed. New offers are off by default — tick when the customer qualifies.</div>
+        <div class="hint" style="margin-top:8px">Note: per Hyundai scheme a customer may avail <b>either</b> Exchange <b>or</b> Scrappage, and only <b>one</b> of Government / Corporate / Rural. Upgrade can be clubbed with these. New offers are off by default — tick when the customer qualifies.</div>
         <div class="row2" style="margin-top:12px">
           <div class="field"><label>Exchange Car Value (₹)</label><input id="f_exch" type="number" min="0" value="0"></div>
           <div class="field"><label>Festive Additional Offer (₹)</label><input id="f_festive" type="number" min="0" value="0"></div>
@@ -418,7 +417,7 @@ const INFO = {
 };
 
 /* ===== state ===== */
-let S={fuel:null,model:null,variant:null,extra:{},tf:'',matte:false,roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',pp:{ew:-1,sot:-1,ss:-1,bc:false},exchange:false,scrap:false,poi:false,sambandh:false,t2to4:false,upgrade:false,corp:false};
+let S={fuel:null,model:null,variant:null,extra:{},tf:'',matte:false,roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',pp:{ew:-1,sot:-1,ss:-1,bc:false},exchange:false,scrap:false,poi:false,sambandh:false,upgrade:false,corp:false};
 let customAcc=[]; let pkgAccOn=false; let quoteNo='',quoteDateStr='',validStr=''; let lastShareUrl='';
 const ROADTAX_LBL={'5Y':'5 Years','LT':'Lifetime','BH':'BH Series'};
 const INS_LBL={'FAO':'Full Add-on','B2B':'B2B','BASIC':'Basic'};
@@ -512,8 +511,8 @@ function onRoadFor(r){const ex=r.ex+((S.matte&&r.matte)?r.matte:0),tcs=ex>=10000
   const sot=0,ew=0,acc=pkgAccOn?(r.acc||0):0;
   const primary=netEx+rt+ins+hypo+fastag+sot+ew+acc;
   const exch=S.exchange?(r.sch_exchange||0):0,scrap=S.scrap?(r.sch_scrap||0):0,poi=S.poi?(r.sch_poi||0):0,samb=S.sambandh?(r.sch_sambandh||0):0;
-  const t24=S.t2to4?(r.sch_2to4||0):0,upg=S.upgrade?(r.sch_upgrade||0):0,corp=S.corp?(r.sch_corp||0):0;
-  return primary+tcs-exch-scrap-poi-samb-t24-upg-corp;}
+  const upg=S.upgrade?(r.sch_upgrade||0):0,corp=S.corp?(r.sch_corp||0):0;
+  return primary+tcs-exch-scrap-poi-samb-upg-corp;}
 /* price-adjacent trims within same model+fuel+transmission */
 function neighbours(sel){
   let fam=CATALOGUE.filter(r=>r.modelDisp===sel.modelDisp&&r.fuel===sel.fuel&&r.trans===sel.trans);
@@ -620,8 +619,8 @@ function buildQuote(){const r=currentRow();if(!r)return null;const exBase=r.ex;c
   const sot=0,ew=0;
   const ai=accInfo(),acc=ai.t,primary=netEx+roadtax+ins+hypo+fastag+acc;
   const exch=S.exchange?(r.sch_exchange||0):0,scrap=S.scrap?(r.sch_scrap||0):0,poi=S.poi?(r.sch_poi||0):0,samb=S.sambandh?(r.sch_sambandh||0):0;
-  const t24=S.t2to4?(r.sch_2to4||0):0,upg=S.upgrade?(r.sch_upgrade||0):0,corp=S.corp?(r.sch_corp||0):0;
-  const netOnRoad=primary+tcs-exch-scrap-poi-samb-t24-upg-corp;
+  const upg=S.upgrade?(r.sch_upgrade||0):0,corp=S.corp?(r.sch_corp||0):0;
+  const netOnRoad=primary+tcs-exch-scrap-poi-samb-upg-corp;
   const exchCar=+val('f_exch')||0,festive=+val('f_festive')||0,netPayable=netOnRoad-exchCar-festive;
   const fullDesc=[r.modelDisp,r.variant,(r.edition!=='Normal'?r.edition:''),r.trans,r.fuel,(r.color!=='Single Color'?r.color:'')].filter(Boolean).join(' ');
   const nb=neighbours(r);
@@ -635,7 +634,7 @@ function buildQuote(){const r=currentRow();if(!r)return null;const exBase=r.ex;c
     ex:exBase,matteAmt,consumer,netEx,roadtax,roadtaxLabel:rtLabel(rtOv,_ev,_bhVendor,_pr),bhVendor:_bhVendor,ins,insLabel:(insOv?'Manual entry':INS_LBL[S.ins]),
     hypoOn:S.hypo==='Y',hypo,fastagOn:S.fastag!=='N',fastag,fastagLabel:(S.fastag==='AP'?'Annual Pass':'Standard'),sotOn:S.sot==='Y',sot,sotLabel:'5th Yr/60K',
     ewKey:S.ew,ew,ewLabel:S.ew==='4Y'?'4Y/80K':S.ew==='5Y'?'4+5Y/100K':'',acc,accItems:ai.items,
-    primary,tcs,exch,scrap,poi,samb,t24,upg,corp,netOnRoad,exchCar,festive,netPayable,compare,protection:_prot,
+    primary,tcs,exch,scrap,poi,samb,upg,corp,netOnRoad,exchCar,festive,netPayable,compare,protection:_prot,
     down:+val('f_down')||0,rate:+val('f_rate')};}
 
 /* ===== paint (used by both live + read-only) ===== */
@@ -645,7 +644,7 @@ function guideUrl(model){var f=GUIDE_FILE[model];return f?(GUIDE_BASE+f+"_2026.h
 function paintQuote(o){
   const r=currentRow();
   if(!o){ // empty live state
-    ['exchange:sch_exchange','scrap:sch_scrap','poi:sch_poi','sambandh:sch_sambandh','t2to4:sch_2to4','upgrade:sch_upgrade','corp:sch_corp'].forEach(p=>{const[k,f]=p.split(':');const el=document.getElementById('amt_'+k);if(el)el.textContent=r?'  '+fmt(r[f]||0):'';});
+    ['exchange:sch_exchange','scrap:sch_scrap','poi:sch_poi','sambandh:sch_sambandh','upgrade:sch_upgrade','corp:sch_corp'].forEach(p=>{const[k,f]=p.split(':');const el=document.getElementById('amt_'+k);if(el)el.textContent=r?'  '+fmt(r[f]||0):'';});
     document.getElementById('q_car').textContent='\u2014 select a vehicle \u2014';document.getElementById('parties').innerHTML='';
     document.getElementById('q_rows').innerHTML='<tr><td colspan="2" style="padding:34px 18px;text-align:center;color:#8497ab">Select a model &amp; variant to generate the quotation.</td></tr>';
     document.getElementById('emi_rows').innerHTML='';document.getElementById('emi_meta').innerHTML='';
@@ -677,7 +676,6 @@ function paintQuote(o){
   if(o.poi>0)h+=ded('Government / POI',o.poi);
   if(o.corp>0)h+=ded('Corporate Offer',o.corp);
   if(o.samb>0)h+=ded('Rural / Sambandh',o.samb);
-  if(o.t24>0)h+=ded('2-To-4 Offer (2-wheeler owner)',o.t24);
   if(o.upg>0)h+=ded('Upgrade Bonus',o.upg);
   h+=`<tr class="net"><td>Net On-Road Value</td><td class="amt">${fmt(o.netOnRoad)}</td></tr>`;
   if(o.exchCar>0)h+=ded('Exchange Car Value',o.exchCar);
@@ -710,7 +708,7 @@ function paintQuote(o){
     `<span>Loan Amount: <b>${fmt(loan)}</b></span><span>Processing Fee: <b>${fmt(proc)}</b></span><span>Total Down Payment: <b>${fmt(o.down+proc)}</b></span><span>Rate: <b>${(o.rate*100).toFixed(2)}%</b></span>`;
   document.getElementById('emi_rows').innerHTML=[12,24,36,48,60,72,84].map(m=>`<tr><td>${m} months</td><td>${fmt(pmt(o.rate/12,m,loan))}</td></tr>`).join('');
   // live: bonus labels
-  ['exchange:sch_exchange','scrap:sch_scrap','poi:sch_poi','sambandh:sch_sambandh','t2to4:sch_2to4','upgrade:sch_upgrade','corp:sch_corp'].forEach(p=>{const[k,f]=p.split(':');const el=document.getElementById('amt_'+k);if(el)el.textContent=r?'  '+fmt(r[f]||0):'';});
+  ['exchange:sch_exchange','scrap:sch_scrap','poi:sch_poi','sambandh:sch_sambandh','upgrade:sch_upgrade','corp:sch_corp'].forEach(p=>{const[k,f]=p.split(':');const el=document.getElementById('amt_'+k);if(el)el.textContent=r?'  '+fmt(r[f]||0):'';});
 }
 function render(){fillProtection();paintQuote(buildQuote());}
 
@@ -752,7 +750,7 @@ function waMessage(o,url){
   if(o.fastagOn)m+=`FASTag (${o.fastagLabel}): ${fmt(o.fastag)}\n`;
   if(o.acc>0)m+=`Accessories: ${fmt(o.acc)}\n`;
   if(o.tcs>0)m+=`TCS: ${fmt(o.tcs)}\n`;
-  const tb=o.exch+o.scrap+o.poi+o.samb+o.t24+o.upg+o.corp;if(tb>0)m+=`Total Bonus: \u2013 ${fmt(tb)}\n`;
+  const tb=o.exch+o.scrap+o.poi+o.samb+o.upg+o.corp;if(tb>0)m+=`Total Bonus: \u2013 ${fmt(tb)}\n`;
   m+=`\n*Net On-Road: ${fmt(o.netOnRoad)}*\n*Net Payable: ${fmt(o.netPayable)}*\n`;
   if(o.protection&&o.protection.items&&o.protection.items.length){m+=`\n*Optional Protection Plans:*\n`;
     o.protection.items.forEach(function(it){m+=it.name+' ('+it.opt+'): '+fmt(it.amt)+'\n';});
@@ -767,13 +765,13 @@ function openWa(o,url){var phone=(o.custPhone||'').replace(/\D/g,'');var wa=(pho
 function saveQuiet(o){ try{ fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify(o),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(){}).catch(function(){}); }catch(e){} }
 function whatsappFlow(){var o=buildQuote();if(!validateQuoteInputs(o))return;var url=persistQuote(o);openWa(o,url);toast('Saved & shared \u2713');}
 function printFlow(){var o=buildQuote();if(!validateQuoteInputs(o))return;var url=persistQuote(o);toast('Saved to dealership log \u2713 \u00b7 customer link ready');setTimeout(function(){window.print();},60);}
-function newQuote(){S={fuel:S.fuel||null,model:null,variant:null,extra:{},tf:'',matte:false,roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',pp:{ew:-1,sot:-1,ss:-1,bc:false},exchange:false,scrap:false,poi:false,sambandh:false,t2to4:false,upgrade:false,corp:false};
+function newQuote(){S={fuel:S.fuel||null,model:null,variant:null,extra:{},tf:'',matte:false,roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',pp:{ew:-1,sot:-1,ss:-1,bc:false},exchange:false,scrap:false,poi:false,sambandh:false,upgrade:false,corp:false};
   customAcc=[];pkgAccOn=false;lastShareUrl='';document.getElementById('shareBox').classList.remove('show');
   ['custName','custPhone'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_exch').value=0;document.getElementById('f_festive').value=0;document.getElementById('f_down').value=100000;
   var _rm=document.getElementById('f_roadtax_man');if(_rm)_rm.value='';var _im=document.getElementById('f_ins_man');if(_im)_im.value='';
   ['roadtax','ins','hypo','fastag'].forEach(g=>document.querySelectorAll('#seg_'+g+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===S[g])));
-  ['exchange','scrap','poi','sambandh','t2to4','upgrade','corp'].forEach(k=>{var c=document.getElementById('chk_'+k);if(c)c.classList.remove('on');var ii=document.querySelector('#chk_'+k+' input');if(ii)ii.checked=false;});
+  ['exchange','scrap','poi','sambandh','upgrade','corp'].forEach(k=>{var c=document.getElementById('chk_'+k);if(c)c.classList.remove('on');var ii=document.querySelector('#chk_'+k+' input');if(ii)ii.checked=false;});
   fillFuels();fillTrans();fillModels();document.getElementById('f_model').value='';document.getElementById('f_variant').innerHTML='';document.getElementById('cascadeExtra').innerHTML='';
   genQuoteNo();renderAcc();render();toast('New blank quotation started');}
 
@@ -804,7 +802,7 @@ function wireEvents(){
   var pps=byId('pp_sot');if(pps)pps.addEventListener('change',function(){S.pp.sot=parseInt(this.value,10);render();});
   var ppx=byId('pp_ss');if(ppx)ppx.addEventListener('change',function(){S.pp.ss=parseInt(this.value,10);render();});
   var ppb=byId('pp_bc');if(ppb)ppb.addEventListener('change',function(){S.pp.bc=this.checked;render();});
-  ['exchange','scrap','poi','sambandh','t2to4','upgrade','corp'].forEach(function(k){var el=document.querySelector('#chk_'+k+' input');if(el)el.addEventListener('change',function(){toggleChk(k);});});
+  ['exchange','scrap','poi','sambandh','upgrade','corp'].forEach(function(k){var el=document.querySelector('#chk_'+k+' input');if(el)el.addEventListener('change',function(){toggleChk(k);});});
   byId('cascadeExtra').addEventListener('change',function(e){var s=e.target;if(s&&s.getAttribute&&s.getAttribute('data-k'))setExtra(s.getAttribute('data-k'),s.value);});
   var ah=byId('accList');
   ah.addEventListener('change',function(e){var x=e.target;if(!x.getAttribute)return;if(x.getAttribute('data-acc')==='pkg'){pkgAccOn=x.checked;var it=x.closest('.acc-item');if(it)it.classList.toggle('on',x.checked);render();}else if(x.getAttribute('data-acc')==='matte'){S.matte=x.checked;var itm=x.closest('.acc-item');if(itm)itm.classList.toggle('on',x.checked);render();}else if(x.hasAttribute('data-acc-i')){customAcc[+x.getAttribute('data-acc-i')].on=x.checked;render();}});
