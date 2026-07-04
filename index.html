@@ -292,8 +292,8 @@ body.readonly .ro-banner{display:flex}
                 <div class="field"><div class="labrow"><label style="margin:0">Protection Plans <small style="font-weight:600;color:#8497ab">· optional add-ons</small></label><button class="info-btn" data-info="prot">i</button></div>
           <div class="pp-grid">
             <div class="pp-row"><span class="pp-l">Extended Warranty</span><select id="pp_ew"><option value="-1">— select a vehicle —</option></select></div>
-            <div class="pp-row"><span class="pp-l">Shield of Trust (SOT)</span><select id="pp_sot"><option value="-1">—</option></select></div>
-            <div class="pp-row"><span class="pp-l">SOT Super (PMS)</span><select id="pp_ss"><option value="-1">—</option></select></div>
+            <div class="pp-row"><span class="pp-l">Shield of Trust (SOT)</span><select id="pp_ss"><option value="-1">—</option></select></div>
+            <div class="pp-row"><span class="pp-l">SOT Super (PMS)</span><select id="pp_sot"><option value="-1">—</option></select></div>
             <div class="pp-row pp-check"><label for="pp_bc"><input type="checkbox" id="pp_bc"> Body Care Package</label><span id="pp_bc_amt" class="pp-amt"></span></div>
           </div>
           <div class="pp-note" id="pp_note"></div></div>
@@ -578,10 +578,10 @@ function computeProtection(r){var items=[],total=0,later=0; if(!r) return {items
       items.push({name:'Extended Warranty',opt:PROT.ewOpts[S.pp.ew],amt:a,later:l});total+=a;later+=l;}}
   var sk=sotKeyFor(m),sf=sotFuel(r.fuel);
   if(S.pp.sot>=0 && PROT.sot[sk] && PROT.sot[sk][sf]){var p=PROT.sot[sk][sf][S.pp.sot];
-    if(p!=null){var pg=Math.round(p*1.18);items.push({name:'Shield of Trust (SOT)',opt:PROT.sotOpts[S.pp.sot],amt:pg,later:pg});total+=pg;later+=pg;}}
+    if(p!=null){var pg=Math.round(p*1.18);items.push({name:'SOT Super (PMS)',opt:PROT.sotOpts[S.pp.sot],amt:pg,later:pg});total+=pg;later+=pg;}}
   var ssk=ssKeyFor(m);
   if(S.pp.ss>=0 && PROT.ss[ssk]){var b1=PROT.ss[ssk].S1[S.pp.ss],b2=PROT.ss[ssk].S2[S.pp.ss];
-    if(b1!=null){var g1=Math.round(b1*1.18),gl=Math.round((b2!=null?b2:b1)*1.18);items.push({name:'SOT Super (PMS)',opt:PROT.ssOpts[S.pp.ss],amt:g1,later:gl});total+=g1;later+=gl;}}
+    if(b1!=null){var g1=Math.round(b1*1.18),gl=Math.round((b2!=null?b2:b1)*1.18);items.push({name:'Shield of Trust (SOT)',opt:PROT.ssOpts[S.pp.ss],amt:g1,later:gl});total+=g1;later+=gl;}}
   var bk=bcKeyFor(m);
   if(S.pp.bc && PROT.bc[bk]!=null){var bcg=PROT.bc[bk];items.push({name:'Body Care Package',opt:'incl taxes',amt:bcg,later:bcg});total+=bcg;later+=bcg;}
   return {items:items,total:total,later:later,saving:later-total};}
@@ -720,7 +720,7 @@ function closeInfo(){document.getElementById('modalBg').classList.remove('show')
 function genQuoteNo(){const d=new Date(),p=n=>String(n).padStart(2,'0'),rnd=Math.random().toString(36).slice(2,6).toUpperCase();
   quoteNo=`RDB-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${rnd}`;
   const opt={day:'2-digit',month:'short',year:'numeric'};quoteDateStr=d.toLocaleDateString('en-IN',opt);
-  validStr='Valid until '+new Date(d.getTime()+15*864e5).toLocaleDateString('en-IN',opt);
+  validStr='Valid until '+new Date(d.getFullYear(),d.getMonth()+1,0).toLocaleDateString('en-IN',opt);
   document.getElementById('quoteNo').textContent=quoteNo;document.getElementById('quoteDate').textContent=quoteDateStr;}
 
 /* ===== save / share ===== */
