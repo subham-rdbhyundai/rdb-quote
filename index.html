@@ -201,13 +201,13 @@ body.readonly .ro-banner{display:flex}
 .modal{background:#fff;border-radius:16px;max-width:480px;width:100%;box-shadow:var(--shadow);overflow:hidden}
 .modal h3{background:linear-gradient(100deg,var(--hy),#0a4488);color:#fff;padding:16px 20px;font-size:16px}
 .modal .mbody{padding:18px 20px;font-size:13.5px;color:var(--ink);max-height:60vh;overflow:auto}
-.modal .mbody ul{margin:10px 0 0;padding-left:18px}.modal .mbody li{margin-bottom:6px}
+.modal .mbody ul{margin:10px 0 0;padding-left:18px}.modal .mbody li{margin-bottom:6px}.modal .mbody p{margin:12px 0 3px;font-weight:700;color:var(--hy);font-size:12.5px}
 .modal .close{width:100%;border:0;background:#f3f7fc;padding:13px;font-family:var(--disp);font-weight:700;color:var(--hy);cursor:pointer}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--hy-ink);color:#fff;padding:13px 22px;border-radius:12px;font-weight:600;font-size:14px;box-shadow:var(--shadow);opacity:0;transition:.3s;z-index:60;pointer-events:none;max-width:90vw;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.toast.err{background:var(--bad)}
 .print-head{display:none;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:2px solid var(--hy)}.print-head img{height:42px}
 .print-only{display:none}
-@media print{.cmp-switch{display:none}
+@media print{.cmp-switch{display:none}.info-btn{display:none}
   body{background:#fff}.wrap{max-width:none;padding:0}.no-print{display:none !important}
   #shareBox{display:none !important}
   .grid{display:block}#quoteCard{border:0;box-shadow:none}.print-head{display:flex !important}.print-only{display:block}
@@ -291,10 +291,10 @@ body.readonly .ro-banner{display:flex}
         </div>
                 <div class="field"><div class="labrow"><label style="margin:0">Protection Plans <small style="font-weight:600;color:#8497ab">· optional add-ons</small></label><button class="info-btn" data-info="prot">i</button></div>
           <div class="pp-grid">
-            <div class="pp-row"><span class="pp-l">Extended Warranty</span><select id="pp_ew"><option value="-1">— select a vehicle —</option></select></div>
-            <div class="pp-row"><span class="pp-l">Shield of Trust (SOT)</span><select id="pp_ss"><option value="-1">—</option></select></div>
-            <div class="pp-row"><span class="pp-l">SOT Super (PMS)</span><select id="pp_sot"><option value="-1">—</option></select></div>
-            <div class="pp-row pp-check"><label for="pp_bc"><input type="checkbox" id="pp_bc"> Body Care Package</label><span id="pp_bc_amt" class="pp-amt"></span></div>
+            <div class="pp-row"><span class="pp-l">Extended Warranty <button class="info-btn" data-info="ew" style="vertical-align:middle;margin-left:4px">i</button></span><select id="pp_ew"><option value="-1">— select a vehicle —</option></select></div>
+            <div class="pp-row"><span class="pp-l">Shield of Trust (SOT) <button class="info-btn" data-info="sot" style="vertical-align:middle;margin-left:4px">i</button></span><select id="pp_ss"><option value="-1">—</option></select></div>
+            <div class="pp-row"><span class="pp-l">SOT Super (PMS) <button class="info-btn" data-info="sotsuper" style="vertical-align:middle;margin-left:4px">i</button></span><select id="pp_sot"><option value="-1">—</option></select></div>
+            <div class="pp-row pp-check"><label for="pp_bc"><input type="checkbox" id="pp_bc"> Body Care Package</label> <button class="info-btn" data-info="bodycare" style="vertical-align:middle;margin-left:2px">i</button><span id="pp_bc_amt" class="pp-amt"></span></div>
           </div>
           <div class="pp-note" id="pp_note"></div></div>
         <div class="field"><div class="labrow"><label style="margin:0">Accessories</label><button class="info-btn" data-info="acc">i</button></div>
@@ -403,14 +403,10 @@ function readHashQuote(){try{var m=/[#&]q=([^&]+)/.exec(location.hash||"");if(!m
 let CATALOGUE = [];
 const INFO = {
   prot:{t:"Protection Plans",h:`Optional add-ons quoted on top of the on-road price, matched to the selected model, fuel & transmission:<ul><li><b>Extended Warranty</b> \u2014 covers mechanical/electrical breakdown beyond the standard warranty </li><li><b>Shield of Trust (SOT)</b> \u2014 covers wear & tear of 14 essential parts.</li><li><b>SOT Super</b> \u2014 prepaid periodic maintenance (PMS) package.</li><li><b>Body Care</b> \u2014 minor body-panel repair package.</li></ul>EW, SOT and SOT Super are quoted <b>incl. 18% GST</b>; Body Care is MRP (incl. taxes). Plans use the within-90-days-of-sale slab; the quote shows how much more they cost if booked later.`},
-  sotsuper:{t:"SOT Super (PMS)",h:`Prepaid periodic-maintenance package covering parts, labour, value-added services and wheel alignment/balancing for the chosen duration.`},
-  bodycare:{t:"Body Care Package",h:`Covers repair of minor scratches, dents and small accidental damage to body panels for one year. MRP is inclusive of taxes.`},
-  sot:{t:"Hyundai Shield of Trust (SOT)",h:`Comprehensive coverage for <b>wear-and-tear of 14 essential parts</b> a standard insurance policy does <i>not</i> cover.<ul>
-    <li>Covers brakes, clutch assembly, wiper blades, drive belts, hoses and more</li><li>Repairs with <b>Hyundai genuine parts</b> at authorised workshops</li>
-    <li>Coverage for the <b>5th year or up to 60,000 km</b> (whichever is earlier)</li><li>Protects against unexpected out-of-pocket maintenance costs</li></ul>`},
-  ew:{t:"Hyundai Extended Warranty (EW)",h:`Continues factory-warranty protection <b>beyond the standard period</b>.<ul>
-    <li><b>4th Year / 80,000 km</b> \u2014 one extra year of cover</li><li><b>4th + 5th Year / 100,000 km</b> \u2014 two extra years</li>
-    <li>Covers major mechanical &amp; electrical components against manufacturing defects</li><li>Transferable; enhances resale value; genuine-parts repairs</li></ul>`},
+  sotsuper:{t:"SOT Super (PMS)",h:`A prepaid <b>periodic-maintenance</b> package: your scheduled services are locked in at <b>today's rates</b>, so future price rises don't affect you.<p>What's covered</p><ul><li>All scheduled services per the owner's-manual schedule - engine oil, filters, parts and labour</li><li>One <b>wheel alignment / balancing</b> per service, plus <b>two value-added services</b> during the package</li><li>Typically about <b>13% cheaper</b> than paying per service; usable across Hyundai dealerships</li></ul><p>Plan options (whichever comes first)</p><ul><li>5 Yr / 50K · 4 Yr / 40K · 3 Yr / 30K · 2 Yr / 20K</li></ul><p>Good to know</p><ul><li>Covers scheduled maintenance only, not wear-and-tear repairs (Shield of Trust) or breakdowns (Extended Warranty)</li><li>Best value when booked early after purchase; price rises in later slabs</li><li><b>Amount shown includes 18% GST.</b></li></ul>`},
+  bodycare:{t:"Body Care Package",h:`A cosmetic-care plan that keeps your Hyundai showroom-fresh, without touching your insurance.<p>What's covered</p><ul><li>Professional repair of minor scratches and dents on up to <b>3 body panels</b></li><li>Restores paint and finish so small marks don't build up over time</li></ul><p>Good to know</p><ul><li>Avoids losing your insurance <b>No-Claim Bonus</b> over small cosmetic damage</li><li>Does <b>not</b> cover major dents, structural or accident damage</li><li>Price shown is <b>MRP, inclusive of taxes</b>.</li></ul>`},
+  sot:{t:"Hyundai Shield of Trust (SOT)",h:`A running-repairs plan that covers the <b>wear-and-tear parts your warranty and insurance don't</b>, so there are no surprise bills as the car ages.<p>What's covered</p><ul><li>Replacement of <b>14 major running-repair parts</b> - brakes, clutch, wiper blades, drive belts, hoses and more (exact list varies by model/variant)</li><li>Hyundai genuine parts, usable at <b>any Hyundai dealership</b> across India</li></ul><p>Plan options (whichever comes first)</p><ul><li>5 Yr / 60K · 4 Yr / 60K · 4 Yr / 45K · 3 Yr / 45K · 2 Yr / 40K</li></ul><p>Good to know</p><ul><li>Can be bought within <b>365 days</b> of new-car purchase; cheapest within the first 90 days</li><li>Does <b>not</b> include scheduled servicing (that's SOT Super) or accident damage</li><li><b>Amount shown includes 18% GST.</b></li></ul>`},
+  ew:{t:"Hyundai Extended Warranty (EW)",h:`Continues your factory warranty after the standard <b>3 yr / 1,00,000 km</b> cover ends, so mechanical &amp; electrical breakdowns stay protected.<p>What's covered</p><ul><li>Repair of major mechanical &amp; electrical parts against breakdown under normal use, with <b>Hyundai genuine parts</b> at authorised workshops</li><li><b>Roadside Assistance (RSA)</b> included</li><li>Transferable to the next owner for the remaining period (helps resale)</li></ul><p>Plan options</p><ul><li>4th Yr / 80K · 5th Yr / 100K</li><li>4th &amp; 5th Yr / 100K · 140K &nbsp;(180K: Prime SD/HB only)</li><li>Longer cover: 4th-7th / 140K · 5th-7th / 140K · 6th &amp; 7th / 140K</li></ul><p>Good to know</p><ul><li>Cover starts when the standard warranty expires; buy within the basic/extended-warranty period</li><li>Does <b>not</b> cover wear-and-tear parts (that's Shield of Trust) or accident damage</li><li>No refund or surrender value; can't be moved to another vehicle; servicing stays with authorised Hyundai</li><li>Cheapest within 90 days of delivery; rises in later slabs. <b>Amount shown includes 18% GST.</b></li></ul>`},
   acc:{t:"Accessories",h:`Personalise and protect your Hyundai with genuine accessories.<ul>
     <li>Tick the standard package, or <b>add individual items</b> with prices below</li><li>e.g. floor mats, body cover, mud flaps, seat covers, dash camera, door visors</li>
     <li>All fitments are <b>Hyundai genuine</b> with applicable warranty</li></ul>`}
@@ -683,7 +679,8 @@ function paintQuote(o){
   h+=`<tr class="pay"><td>Net Payable Value</td><td class="amt">${fmt(o.netPayable)}</td></tr>`;
   if(o.protection&&o.protection.items&&o.protection.items.length){
     h+='<tr class="sub"><td>Optional Protection Plans</td><td class="amt"></td></tr>';
-    o.protection.items.forEach(function(it){h+=line(it.name,fmt(it.amt),it.opt);});
+    var PPKEY={'Extended Warranty':'ew','Shield of Trust (SOT)':'sot','SOT Super (PMS)':'sotsuper','Body Care Package':'bodycare'};
+    o.protection.items.forEach(function(it){var _k=PPKEY[it.name];var _nm=it.name+(_k?' <button class="info-btn" data-info="'+_k+'">i</button>':'');h+=line(_nm,fmt(it.amt),it.opt);});
     h+='<tr class="net"><td>Total incl. Protection Plans</td><td class="amt">'+fmt(o.netPayable+o.protection.total)+'</td></tr>';
     if(o.protection.saving>0)h+='<tr><td colspan="2" style="padding:7px 18px;font-size:11.5px;color:#1f7a4d;background:#f3fbf6">Booked within 90 days of sale. After 90 days these plans would cost '+fmt(o.protection.later)+' (\u002b'+fmt(o.protection.saving)+').</td></tr>';
   }
@@ -755,6 +752,7 @@ function waMessage(o,url){
   if(o.protection&&o.protection.items&&o.protection.items.length){m+=`\n*Optional Protection Plans:*\n`;
     o.protection.items.forEach(function(it){m+=it.name+' ('+it.opt+'): '+fmt(it.amt)+'\n';});
     m+=`*Total incl. Plans: ${fmt(o.netPayable+o.protection.total)}*\n`;
+    m+=`_Tap your quote link below for full coverage, benefits & terms of each plan._\n`;
     if(o.protection.saving>0)m+=`(Within-90-day price \u2014 saves ${fmt(o.protection.saving)} vs after 90 days)\n`;}
   const loan=Math.max(0,o.netOnRoad-o.down);m+=`\nIndicative EMI @ ${(o.rate*100).toFixed(2)}% (loan ${fmt(loan)}):\n60 mo \u2248 ${fmt(pmt(o.rate/12,60,loan))} \u00B7 84 mo \u2248 ${fmt(pmt(o.rate/12,84,loan))}\n`;
   if(url)m+=`\n\uD83D\uDCC4 *View full quotation & save PDF:*\n${url}\n`;
