@@ -87,6 +87,23 @@ header.top{
 }
 .chip.on{background:var(--hy); border-color:var(--hy); color:#fff}
 .filters select{width:auto; min-width:150px; padding:7px 10px; font-size:12.5px}
+.msel{position:relative}
+.mbtn{padding:7px 12px; border:1px solid var(--line); background:#fff; border-radius:var(--r-sm);
+  font-size:12.5px; font-weight:600; color:var(--hy); min-width:160px; text-align:left; white-space:nowrap}
+.mbtn:hover,.mbtn.on{border-color:var(--acc)}
+.mbtn .car{float:right; color:var(--muted2); margin-left:6px}
+.mpop{position:absolute; top:calc(100% + 6px); left:0; z-index:40; background:#fff;
+  border:1px solid var(--line); border-radius:var(--r-sm); box-shadow:var(--shadow);
+  padding:8px; min-width:250px; max-height:360px; overflow:auto; display:none}
+.mpop.show{display:block}
+.mpop label{display:flex; align-items:center; gap:8px; padding:5px 7px; border-radius:6px;
+  font-size:12.5px; cursor:pointer; color:var(--ink)}
+.mpop label:hover{background:var(--line2)}
+.mpop label.loc{font-weight:700; color:var(--hy); margin-top:4px}
+.mpop label.sub{padding-left:22px; color:var(--muted)}
+.mpop input{width:14px; height:14px; margin:0; accent-color:var(--hy); flex:none}
+.mpop .sep{height:1px; background:var(--line); margin:6px 2px}
+.mpop .zero{color:var(--muted2); font-style:italic}
 .filters input[type=search]{width:auto; flex:1; min-width:170px; padding:7px 10px; font-size:12.5px}
 
 /* ---------- kpi ---------- */
@@ -228,7 +245,10 @@ a{color:var(--hy2)}
 
   <div class="filters">
     <div class="chips" id="ranges"></div>
-    <select id="fcon"><option value="">All consultants</option></select>
+    <div class="msel">
+      <button class="mbtn" id="mselBtn" type="button">All consultants <span class="car">▾</span></button>
+      <div class="mpop" id="mselPop"></div>
+    </div>
     <input type="search" id="q" placeholder="Search name, phone, quote no, model…">
   </div>
 
@@ -332,7 +352,7 @@ var PW = null;        // kept in memory only, for this tab, until refresh
 var DIAG = null;      // what the sheet reported back, for troubleshooting
 var ROWS = [];        // every submission
 var RANGE = '30';     // default filter
-var CON = '';
+var CONS = [];        // chosen consultants; empty = everyone
 var QRY = '';
 var CQ = '', RQ = '', DQ = '';   // one search per list
 
@@ -387,6 +407,58 @@ var CMAP = {};   // key -> {name, aliases, phone, count}
 
 function normPhone(p){ return String(p==null?'':p).replace(/\D/g,'').slice(-10); }
 function normName(n){ return String(n==null?'':n).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+/* ---------- the actual sales team, by outlet ----------
+   Consultants type their names freehand, so each merged person is matched back
+   to this list by name tokens (tolerant of one typo per word). Anyone who is
+   not on the list shows as "Others - <name>" and sits under Haldia.          */
+var ROSTER=[
+ {n:'Sukdeb Paramanik',o:'Haldia'},{n:'Soumyadip Santra',o:'Haldia'},{n:'Uttam Patra',o:'Haldia'},
+ {n:'Rajkamal Jana',o:'Haldia'},{n:'Gopal Chandra Midya',o:'Haldia'},
+ {n:'Shyam Mohan Roy',o:'Tamluk'},{n:'Santanu Bera',o:'Tamluk'},{n:'Tarun Singha',o:'Tamluk'},
+ {n:'Sandip Bhowmick',o:'Tamluk'},{n:'Amit Kumar Bag',o:'Tamluk'},{n:'Mozahidul Islam',o:'Tamluk'},
+ {n:'Satyajit Bera',o:'Contai'},{n:'Rajkamal Kar',o:'Contai'},
+ {n:'Rajiv Bhunia',o:'Contai'},{n:'Sabder Ali Khan',o:'Contai'},{n:'Sumit Ghorai',o:'Contai'},
+ {n:'Debashish Bera',o:'Contai',x:true}
+];
+var OUTLETS=['Haldia','Tamluk','Contai'];
+
+function lev(a,b){
+  if(a===b) return 0;
+  var m=a.length,n=b.length; if(Math.abs(m-n)>2) return 9;
+  var prev=[],cur=[],i,j;
+  for(j=0;j<=n;j++) prev[j]=j;
+  for(i=1;i<=m;i++){ cur[0]=i;
+    for(j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));
+    prev=cur.slice();
+  }
+  return prev[n];
+}
+function tokEq(a,b){
+  if(a===b) return true;
+  // an initial or abbreviation: "ch." stands for "Chandra", "kr" for "Kumar"
+  if(a.length>=2 && b.length>=2 && (b.indexOf(a)===0 || a.indexOf(b)===0)) return true;
+  if(a.length<4||b.length<4) return false;
+  return lev(a,b)<=1;                       // one typo per word
+}
+function toks(s){ return normName(s).split(' ').filter(function(t){ return t.length>1; }); }
+
+function matchRoster(aliases){
+  var best=null,bestScore=0,tie=false;
+  ROSTER.forEach(function(R){
+    var rt=toks(R.n), top=0;
+    aliases.forEach(function(al){
+      var at=toks(al); if(!at.length) return;
+      var mA=0; at.forEach(function(t){ if(rt.some(function(r){ return tokEq(t,r); })) mA++; });
+      var mR=0; rt.forEach(function(r){ if(at.some(function(t){ return tokEq(t,r); })) mR++; });
+      if(mA!==at.length && mR!==rt.length) return;   // one side must be fully covered
+      if(mA>top) top=mA;
+    });
+    if(top>bestScore){ bestScore=top; best=R; tie=false; }
+    else if(top===bestScore && top>0 && best && best.n!==R.n) tie=true;
+  });
+  return (best && bestScore>0 && !tie) ? best : null;   // ambiguous -> Others, never a guess
+}
+
 function phoneKey(r){ var p=normPhone(r.conPhone); return p.length===10 ? 'p:'+p : null; }
 function nameKey(r){ var n=normName(r.consultant); return n ? 'n:'+n : null; }
 
@@ -431,7 +503,12 @@ function buildIdentities(){
       if(o.names[y]!==o.names[x]) return o.names[y]-o.names[x];
       return y.length-x.length;
     });
-    CMAP[k]={name:names[0], aliases:names, phones:Object.keys(o.phones), count:o.count};
+    var hit=matchRoster(names);
+    CMAP[k]={ name: hit? hit.n : ('Others - '+names[0]),
+              roster: hit? hit.n : null,
+              outlet: hit? hit.o : 'Haldia',
+              former: hit? !!hit.x : false,
+              aliases:names, phones:Object.keys(o.phones), count:o.count };
   });
   ROWS.forEach(function(r){ r._cn=(CMAP[r._ck]&&CMAP[r._ck].name)||r.consultant||'(not named)'; });
 }
@@ -537,7 +614,7 @@ function filtered(){
   return ROWS.filter(function(r){
     var d=dOf(r);
     if(from && (!d || d<from)) return false;
-    if(CON && r._ck!==CON) return false;
+    if(CONS.length && CONS.indexOf(r._ck)<0) return false;
     if(q){
       var hay=(r.custName+' '+r.custPhone+' '+r.quoteNo+' '+r.model+' '+r.variant+' '+r.consultant+' '+r._cn).toLowerCase();
       if(hay.indexOf(q)<0) return false;
@@ -642,6 +719,7 @@ function renderConsultants(rows){
       else if(cu.q>1) again++;       // same model, quoted again
     });
     return {c:c, name:(CMAP[c]&&CMAP[c].name)||'(not named)',
+            outlet:outletOf(c),
             aliases:(CMAP[c]?CMAP[c].aliases.length:1),
             n:o.n, val:o.val, uniq:keys.length, dup:again, multi:multi,
             once:keys.length-again-multi,                       // got one quote, nothing more
@@ -649,8 +727,8 @@ function renderConsultants(rows){
             last:o.last};
   }).sort(function(x,y){
     var k=CSORT.k, d=CSORT.dir;
-    var av=(k==='name')?x.name.toLowerCase():(k==='last'?(x.last||0):x[k]);
-    var bv=(k==='name')?y.name.toLowerCase():(k==='last'?(y.last||0):y[k]);
+    var av=(k==='name'||k==='outlet')?String(x[k]).toLowerCase():(k==='last'?(x.last||0):x[k]);
+    var bv=(k==='name'||k==='outlet')?String(y[k]).toLowerCase():(k==='last'?(y.last||0):y[k]);
     if(av<bv) return -1*d; if(av>bv) return 1*d;
     return y.n-x.n;
   });
@@ -665,6 +743,7 @@ function renderConsultants(rows){
   $('tCon').innerHTML=
     '<thead><tr>'+
     th('name','Consultant')+
+    th('outlet','Location','','Which outlet this consultant belongs to')+
     th('n','Quotes','num')+'<th></th>'+
     th('uniq','Customers','num','Different customers quoted \u2014 counted once each, however many quotes they got. Customers = Once only + Re-quoted + Comparing.')+
     th('once','Once only','num','Customers who received exactly one quote and nothing more.')+
@@ -679,11 +758,13 @@ function renderConsultants(rows){
           (function(){
              var m=CMAP[x.c]; if(!m) return '';
              var bits=[];
+             if(m.former) bits.push('former');
              if(m.aliases.length>1) bits.push(m.aliases.length+' spellings');
              if(m.phones.length>1) bits.push(m.phones.length+' numbers');
              return bits.length? ' <span class="alias" title="Typed as: '+esc(m.aliases.join(', '))+
                     (m.phones.length>1?'&#10;Numbers used: '+esc(m.phones.join(', ')):'')+'">'+bits.join(' \u00b7 ')+'</span>':'';
            })()+'</td>'+
+        '<td class="dim">'+esc(x.outlet)+'</td>'+
         '<td class="num"><b>'+x.n+'</b></td>'+
         '<td style="width:90px"><div class="bar"><i style="width:'+Math.round(x.n/max*100)+'%"></i></div></td>'+
         '<td class="num">'+x.uniq+'</td>'+
@@ -782,10 +863,10 @@ function repeatGroups(){
 
 function renderRepeats(){
   var all=repeatGroups().filter(function(g){ return g.ckeys.length===1; });   // clashes live in their own panel
-  if(CON) all=all.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+  if(CONS.length) all=all.filter(function(g){ return g.ckeys.some(function(k){ return CONS.indexOf(k)>-1; }); });
   var groups=all.filter(function(g){ return groupHit(g,RQ); });
 
-  var who = CON ? ((CMAP[CON]&&CMAP[CON].name)||'this consultant') : null;
+  var who = selLabel() || null;
   $('repHint').innerHTML = (who
       ? 'Customers <b>'+esc(who)+'</b> quoted more than once, where nobody else quoted them too. '
       : 'One consultant quoted the same phone number more than once \u2014 nobody else was involved. ')+
@@ -876,11 +957,11 @@ function clashGroups(){
 
 function renderClash(){
   var all=clashGroups();
-  if(CON) all=all.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+  if(CONS.length) all=all.filter(function(g){ return g.ckeys.some(function(k){ return CONS.indexOf(k)>-1; }); });
   if(!all.length){ $('clashPanel').style.display='none'; return; }
   $('clashPanel').style.display='';
   var groups=all.filter(function(g){ return groupHit(g,CQ); });
-  var who=CON?((CMAP[CON]&&CMAP[CON].name)||''):'';
+  var who=selLabel();
   var sure=all.filter(function(g){ return g.sure; }).length;
   $('clashHint').innerHTML='The same customer received quotes from two or more different consultants'+
     (who? ', involving <b>'+esc(who)+'</b>':'')+'. All-time. '+
@@ -908,11 +989,11 @@ function renderClash(){
 
 function renderDup(){
   var all=sameNameGroups().filter(function(g){ return g.ckeys.length===1; });  // 2+ consultants -> tracker above
-  if(CON) all=all.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+  if(CONS.length) all=all.filter(function(g){ return g.ckeys.some(function(k){ return CONS.indexOf(k)>-1; }); });
   if(!all.length){ $('dupPanel').style.display='none'; return; }
   $('dupPanel').style.display='';
   var groups=all.filter(function(g){ return groupHit(g,DQ); });
-  var who = CON ? ((CMAP[CON]&&CMAP[CON].name)||'') : '';
+  var who = selLabel();
   $('dupHint').innerHTML='The same customer name on more than one phone number, all with the same consultant'+
     (who? ' (<b>'+esc(who)+'</b>)':'')+
     ' \u2014 possibly one customer entered twice, possibly two different people. '+
@@ -1057,22 +1138,67 @@ function buildRanges(){
     return '<button class="chip'+(r.k===RANGE?' on':'')+'" data-r="'+r.k+'">'+r.t+'</button>';
   }).join('');
 }
+function outletOf(k){ return (CMAP[k]&&CMAP[k].outlet)||'Haldia'; }
+function keysIn(o){ return Object.keys(CMAP).filter(function(k){ return outletOf(k)===o; }); }
+
 function buildConsultants(){
-  var list=Object.keys(CMAP).map(function(k){ return {k:k, n:CMAP[k].name}; })
-    .sort(function(x,y){ return x.n.localeCompare(y.n); });
-  var sel=$('fcon'), cur=sel.value;
-  sel.innerHTML='<option value="">All consultants</option>'+
-    list.map(function(o){ return '<option value="'+esc(o.k)+'">'+esc(o.n)+'</option>'; }).join('');
-  if(CMAP[cur]) sel.value=cur; else { sel.value=''; CON=''; }
+  CONS=CONS.filter(function(k){ return CMAP[k]; });
+  var h='<label><input type="checkbox" id="mAll"> <b>All consultants</b></label><div class="sep"></div>';
+  OUTLETS.forEach(function(o){
+    var list=keysIn(o).map(function(k){ return {k:k, n:CMAP[k].name, r:CMAP[k].roster, x:CMAP[k].former}; })
+      .sort(function(x,y){
+        if(!!x.r!==!!y.r) return x.r?-1:1;          // roster people first, Others after
+        return x.n.localeCompare(y.n);
+      });
+    if(!list.length) return;
+    h+='<label class="loc"><input type="checkbox" data-loc="'+esc(o)+'"> '+esc(o)+
+       ' <span class="alias">'+list.length+'</span></label>';
+    list.forEach(function(x){
+      h+='<label class="sub"><input type="checkbox" data-ck="'+esc(x.k)+'"> '+esc(x.n)+
+         (x.x?' <span class="alias">former</span>':'')+'</label>';
+    });
+    h+='<div class="sep"></div>';
+  });
+  // roster names that made no quotes at all
+  var seen={}; Object.keys(CMAP).forEach(function(k){ if(CMAP[k].roster) seen[CMAP[k].roster]=1; });
+  var idle=ROSTER.filter(function(R){ return !seen[R.n] && !R.x; });
+  if(idle.length) h+='<div class="zero" style="padding:4px 7px;font-size:11.5px">No quotes yet: '+
+    esc(idle.map(function(R){ return R.n+' ('+R.o+')'; }).join(', '))+'</div>';
+  $('mselPop').innerHTML=h;
+  syncMsel();
+}
+
+function selLabel(){
+  if(!CONS.length) return '';
+  if(CONS.length===1) return (CMAP[CONS[0]]&&CMAP[CONS[0]].name)||'';
+  var locs={}; CONS.forEach(function(k){ locs[outletOf(k)]=1; });
+  var L=Object.keys(locs);
+  if(L.length===1 && keysIn(L[0]).length===CONS.length) return L[0];
+  return CONS.length+' consultants';
+}
+function syncMsel(){
+  var pop=$('mselPop');
+  [].forEach.call(pop.querySelectorAll('[data-ck]'),function(cb){
+    cb.checked = CONS.indexOf(cb.getAttribute('data-ck'))>-1;
+  });
+  OUTLETS.forEach(function(o){
+    var cb=pop.querySelector('[data-loc="'+o+'"]'); if(!cb) return;
+    var all=keysIn(o), on=all.filter(function(k){ return CONS.indexOf(k)>-1; });
+    cb.checked = all.length>0 && on.length===all.length;
+    cb.indeterminate = on.length>0 && on.length<all.length;
+  });
+  var mAll=$('mAll'); if(mAll){ mAll.checked=!CONS.length; mAll.indeterminate=false; }
+  $('mselBtn').innerHTML=esc(selLabel()||'All consultants')+' <span class="car">\u25be</span>';
+  $('mselBtn').classList.toggle('on', CONS.length>0);
 }
 function exportCsv(){
   var rows=filtered();
   var cnt={}; ROWS.forEach(function(r){ if(r.custPhone) cnt[r.custPhone]=(cnt[r.custPhone]||0)+1; });
-  var head=['Timestamp','Quote No','Consultant (merged)','Consultant (as typed)','Consultant Phone','Customer','Phone','Model','Variant','Net On-Road','Net Payable','Quotes to this customer','Status','Share Link'];
+  var head=['Timestamp','Quote No','Consultant','Outlet','Consultant (as typed)','Consultant Phone','Customer','Phone','Model','Variant','Net On-Road','Net Payable','Quotes to this customer','Status','Share Link'];
   var lines=[head.join(',')];
   rows.forEach(function(r){
     var d=dOf(r);
-    lines.push([d?d.toISOString():'', r.quoteNo, r._cn, r.consultant, r.conPhone, r.custName, r.custPhone,
+    lines.push([d?d.toISOString():'', r.quoteNo, r._cn, outletOf(r._ck), r.consultant, r.conPhone, r.custName, r.custPhone,
                 r.model, r.variant, r.netOnRoad, r.netPayable, (r.custPhone?(cnt[r.custPhone]||1):1), r.status||'', r.shareUrl]
       .map(function(v){ v=String(v==null?'':v); return '"'+v.replace(/"/g,'""')+'"'; }).join(','));
   });
@@ -1093,7 +1219,25 @@ function wire(){
     [].forEach.call($('ranges').children,function(c){ c.classList.toggle('on',c===b); });
     render();
   });
-  $('fcon').addEventListener('change',function(){ CON=this.value; render(); });
+  $('mselBtn').addEventListener('click',function(e){
+    e.stopPropagation(); $('mselPop').classList.toggle('show');
+  });
+  $('mselPop').addEventListener('click',function(e){ e.stopPropagation(); });
+  document.addEventListener('click',function(){ $('mselPop').classList.remove('show'); });
+  $('mselPop').addEventListener('change',function(e){
+    var t=e.target;
+    if(t.id==='mAll'){ CONS=[]; }
+    else if(t.getAttribute('data-loc')){
+      var o=t.getAttribute('data-loc'), all=keysIn(o);
+      if(t.checked) all.forEach(function(k){ if(CONS.indexOf(k)<0) CONS.push(k); });
+      else CONS=CONS.filter(function(k){ return all.indexOf(k)<0; });
+    } else if(t.getAttribute('data-ck')){
+      var k=t.getAttribute('data-ck');
+      if(t.checked){ if(CONS.indexOf(k)<0) CONS.push(k); }
+      else CONS=CONS.filter(function(x){ return x!==k; });
+    } else return;
+    syncMsel(); render();
+  });
   var t=null;
   function onSearch(v,other){
     clearTimeout(t);

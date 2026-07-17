@@ -39,7 +39,7 @@ a{color:var(--hy2);text-decoration:none}
 .gstpill{display:inline-block;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600}
 .cbar{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;box-shadow:var(--shadow-sm)}
 .cbar .lab{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.cbar .grp{display:flex;flex-direction:column;gap:4px}.cbar input{min-width:170px}.cbar .spacer{flex:1}
+.cbar .grp{display:flex;flex-direction:column;gap:4px}.cbar input{min-width:170px}.cbar select{min-width:200px}.cbar .spacer{flex:1}
 .cbar .qno{text-align:right;font-size:12px;color:var(--muted)}.cbar .qno b{font-family:var(--disp);color:var(--hy);font-size:15px;display:block}
 .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);gap:18px;margin-top:18px}
 @media(max-width:980px){.grid{grid-template-columns:1fr}}
@@ -254,7 +254,36 @@ body.readonly .ro-banner{display:flex}
   </header>
 
   <div class="cbar builder-only no-print">
-    <div class="grp"><span class="lab">Prepared by (Consultant)</span><input id="consultant" placeholder="Your name"></div>
+    <div class="grp"><span class="lab">Prepared by (Consultant)</span>
+      <select id="consultantSel">
+        <option value="">Select your name</option>
+        <option value="__other">Other (Type Name)</option>
+        <optgroup label="Haldia">
+          <option>Gopal Chandra Midya</option>
+          <option>Rajkamal Jana</option>
+          <option>Soumyadip Santra</option>
+          <option>Sukdeb Paramanik</option>
+          <option>Uttam Patra</option>
+        </optgroup>
+        <optgroup label="Tamluk">
+          <option>Amit Kumar Bag</option>
+          <option>Mozahidul Islam</option>
+          <option>Sandip Bhowmick</option>
+          <option>Santanu Bera</option>
+          <option>Shyam Mohan Roy</option>
+          <option>Tarun Singha</option>
+        </optgroup>
+        <optgroup label="Contai">
+          <option>Rajiv Bhunia</option>
+          <option>Rajkamal Kar</option>
+          <option>Sabder Ali Khan</option>
+          <option>Satyajit Bera</option>
+          <option>Sumit Ghorai</option>
+        </optgroup>
+      </select>
+      <input id="consultantOther" placeholder="Type your name" style="display:none;margin-top:6px">
+      <input type="hidden" id="consultant">
+    </div>
     <div class="grp"><span class="lab">Consultant Mobile</span><input id="consultantPhone" placeholder="10-digit number" inputmode="numeric" maxlength="10"></div>
     <div class="spacer"></div>
     <div class="qno">Quotation No.<b id="quoteNo">—</b><span id="quoteDate"></span></div>
@@ -400,6 +429,75 @@ const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzfvv6PVcyhLaMxM6iA
 var APPS_SCRIPT_URL = WEB_APP_URL;
 function b64u(s){return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
 function unb64u(s){s=String(s).replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return decodeURIComponent(escape(atob(s)));}
+/* The 17 consultants are a fixed list now, so the name is always spelled the same
+   way. #consultant stays as a hidden field holding the resolved name, so every
+   other part of the app keeps working untouched. The mobile number is remembered
+   on this device, per name, so it only has to be typed once. */
+/* official consultant numbers - filled in automatically when a name is picked */
+var SC_PHONE={
+  'Sukdeb Paramanik':'9147077701','Soumyadip Santra':'8100963766','Uttam Patra':'8585026023',
+  'Rajkamal Jana':'8585026019','Gopal Chandra Midya':'8585026018',
+  'Shyam Mohan Roy':'8585026016','Santanu Bera':'7603035913','Tarun Singha':'8100963769',
+  'Sandip Bhowmick':'7029971180','Amit Kumar Bag':'9531731798','Mozahidul Islam':'8906785559',
+  'Satyajit Bera':'8100963761','Rajkamal Kar':'8250714907','Rajiv Bhunia':'8436627329',
+  'Sabder Ali Khan':'9732537872','Sumit Ghorai':'7001204139'
+};
+function fmtPh(p){ p=String(p==null?'':p).replace(/\D/g,''); return p.length===10 ? ('+91 '+p) : (p||''); }
+function scPhones(){ try{ return JSON.parse(localStorage.getItem('rdb_sc_ph')||'{}'); }catch(_){ return {}; } }
+function rememberSc(){
+  try{
+    var n=val('consultant'), p=(document.getElementById('consultantPhone').value||'').replace(/\D/g,'');
+    if(!n) return;
+    localStorage.setItem('rdb_sc_last', n);
+    if(p.length===10){ var m=scPhones(); m[n]=p; localStorage.setItem('rdb_sc_ph', JSON.stringify(m)); }
+  }catch(_){}
+}
+/* When "Other" is chosen the person filling the form is the customer, so the one
+   name and number they type is used for both Prepared By and Quotation For.
+   A field they have edited by hand is never overwritten. */
+var _mirN='', _mirP='';
+function mirrorToCustomer(){
+  var s=document.getElementById('consultantSel');
+  if(!s || s.value!=='__other') return;
+  var n=(document.getElementById('consultantOther').value||'').trim();
+  var p=(document.getElementById('consultantPhone').value||'').replace(/\D/g,'');
+  var cn=document.getElementById('custName'), cp=document.getElementById('custPhone');
+  if(cn && (!cn.value.trim() || cn.value.trim()===_mirN)){ cn.value=n; _mirN=n; }
+  if(cp && (!cp.value.trim() || cp.value.trim()===_mirP)){ cp.value=p; _mirP=p; cp.classList.toggle('invalid',p.length>0&&p.length<10); }
+}
+function syncConsultant(){
+  var s=document.getElementById('consultantSel'), o=document.getElementById('consultantOther'), h=document.getElementById('consultant');
+  if(!s||!h) return;
+  if(s.value==='__other'){ o.style.display=''; h.value=(o.value||'').trim(); }
+  else { o.style.display='none'; h.value=s.value; }
+  mirrorToCustomer();
+  rememberSc();
+  render();
+}
+/* Changing WHO is selected always resets the number - one person's number must
+   never be left sitting in the box for the next. Typing an "Other" name does not
+   reset it, or the number would vanish letter by letter. */
+function onSelChange(){
+  var s=document.getElementById('consultantSel'), ph=document.getElementById('consultantPhone');
+  if(s && ph){
+    if(s.value==='__other'){ ph.value=''; _mirN=''; _mirP=''; }
+    else { var n=s.value; ph.value = n ? (SC_PHONE[n] || scPhones()[n] || '') : ''; }
+    ph.classList.remove('invalid');
+  }
+  syncConsultant();
+}
+function restoreSc(){
+  try{
+    var last=localStorage.getItem('rdb_sc_last'); if(!last) return;
+    var s=document.getElementById('consultantSel'), o=document.getElementById('consultantOther'), h=document.getElementById('consultant');
+    var known=[].some.call(s.options,function(op){ return op.value===last; });
+    if(known){ s.value=last; }
+    else { s.value='__other'; o.value=last; o.style.display=''; }
+    h.value=last;
+    var p=scPhones()[last]; if(p) document.getElementById('consultantPhone').value=p;
+  }catch(_){}
+}
+
 function quoteState(){return {__v:2,S:S,I:{custName:val("custName"),custPhone:val("custPhone"),consultant:val("consultant"),consultantPhone:val("consultantPhone"),f_exch:val("f_exch"),f_festive:val("f_festive"),f_down:val("f_down"),f_rate:val("f_rate"),f_roadtax_man:val("f_roadtax_man"),f_ins_man:val("f_ins_man")},ca:customAcc,pk:pkgAccOn,qn:quoteNo,qd:quoteDateStr,vs:validStr};}
 function applyState(p){try{if(p.S)S=p.S;quoteNo=p.qn||quoteNo;quoteDateStr=p.qd||quoteDateStr;validStr=p.vs||validStr;customAcc=Array.isArray(p.ca)?p.ca:[];pkgAccOn=!!p.pk;if(p.I){Object.keys(p.I).forEach(function(k){var el=document.getElementById(k);if(el)el.value=p.I[k];});}return true;}catch(e){return false;}}
 function selfLink(o){return location.origin+location.pathname+"#q="+b64u(JSON.stringify(quoteState()));}
@@ -654,11 +752,11 @@ function paintQuote(o){
     var cb0=document.getElementById('compareBlock');if(cb0)cb0.innerHTML='';return;}
   document.getElementById('q_car').innerHTML=`${o.carName}<small>${o.fullDesc}${o.specCode?(' \u00b7 Spec Code: '+o.specCode):''}</small>`;
   document.getElementById('q_no2').textContent=o.quoteNo;document.getElementById('q_date2').textContent=o.date;document.getElementById('q_valid').textContent=o.valid;
-  document.getElementById('f_prepby').textContent=o.consultant?(o.consultant+(o.consultantPhone?(' \u00B7 '+o.consultantPhone):'')):'RDB Hyundai';
+  document.getElementById('f_prepby').textContent=o.consultant?(o.consultant+(o.consultantPhone?(' \u00B7 '+fmtPh(o.consultantPhone)):'')):'RDB Hyundai';
   // parties block
   document.getElementById('parties').innerHTML=
-    `<div class="p"><div class="t">Quotation For</div><div class="nm">${o.custName||'\u2014'}</div><div class="ph">${o.custPhone||''}</div></div>
-     <div class="p"><div class="t">Prepared By</div><div class="nm">${o.consultant||'RDB Hyundai'}</div><div class="ph">${o.consultantPhone||''}</div></div>`;
+    `<div class="p"><div class="t">Quotation For</div><div class="nm">${o.custName||'\u2014'}</div><div class="ph">${fmtPh(o.custPhone)}</div></div>
+     <div class="p"><div class="t">Prepared By</div><div class="nm">${o.consultant||'RDB Hyundai'}</div><div class="ph">${fmtPh(o.consultantPhone)}</div></div>`;
   // rows
   const line=(nm,v,opt)=>`<tr><td class="nm">${nm}${opt?` <small>\u00B7 ${opt}</small>`:''}</td><td class="amt">${v}</td></tr>`;
   const ded=(nm,v)=>`<tr class="ded"><td class="nm">${nm}</td><td class="amt">\u2013 ${fmt(v)}</td></tr>`;
@@ -732,7 +830,7 @@ function validateQuoteInputs(o){
   if(!o){toast('Select a car & variant first',true);return false;}
   if(!(o.custName&&o.custName.trim())){toast('Enter the customer name',true);var a=document.getElementById('custName');if(a)a.focus();return false;}
   if(phoneD('custPhone').length!==10){toast('Enter a valid 10-digit customer mobile',true);var b=document.getElementById('custPhone');if(b){b.classList.add('invalid');b.focus();}return false;}
-  if(!(o.consultant&&o.consultant.trim())){toast('Enter the sales consultant name',true);var c=document.getElementById('consultant');if(c)c.focus();return false;}
+  if(!(o.consultant&&o.consultant.trim())){toast('Select the sales consultant name',true);var c=document.getElementById('consultantSel');if(c)c.focus();return false;}
   if(phoneD('consultantPhone').length!==10){toast('Enter a valid 10-digit consultant mobile',true);var d=document.getElementById('consultantPhone');if(d){d.classList.add('invalid');d.focus();}return false;}
   return true;}
 function persistQuote(o){var url=selfLink(o);o.shareUrl=url;lastShareUrl=url;showShare(url);saveQuiet(o);return url;}
@@ -743,7 +841,7 @@ function copyShare(){const i=document.getElementById('shareUrl');i.select();
 
 function waMessage(o,url){
   let m=`*RDB Hyundai \u2014 On-Road Quotation*\n${o.quoteNo} \u00B7 ${o.date}\n${o.valid}\n\n`;
-  m+=`*Quotation For:* ${o.custName||'\u2014'}${o.custPhone?(' ('+o.custPhone+')'):''}\n`;
+  m+=`*Quotation For:* ${o.custName||'\u2014'}${o.custPhone?(' ('+fmtPh(o.custPhone)+')'):''}\n`;
   m+=`*Vehicle:* ${o.fullDesc}${o.specCode?(' (Spec: '+o.specCode+')'):''}\n\n`;
   m+=`Ex-Showroom: ${fmt(o.ex)}\n`;
   if(o.matteAmt>0)m+=`Matte Colour: + ${fmt(o.matteAmt)}\n`;
@@ -763,7 +861,7 @@ function waMessage(o,url){
     if(o.protection.saving>0)m+=`(Within-90-day price \u2014 saves ${fmt(o.protection.saving)} vs after 90 days)\n`;}
   const loan=Math.max(0,o.netOnRoad-o.down);m+=`\nIndicative EMI @ ${(o.rate*100).toFixed(2)}% (loan ${fmt(loan)}):\n60 mo \u2248 ${fmt(pmt(o.rate/12,60,loan))} \u00B7 84 mo \u2248 ${fmt(pmt(o.rate/12,84,loan))}\n`;
   if(url)m+=`\n\uD83D\uDCC4 *View full quotation & save PDF:*\n${url}\n`;
-  m+=`\nPrepared by ${o.consultant||'RDB Hyundai'}${o.consultantPhone?(' ('+o.consultantPhone+')'):''}\nRD Motors Pvt. Ltd. \u2014 RDB Hyundai \u00B7 GSTIN 19AACCR6454J1ZZ`;
+  m+=`\nPrepared by ${o.consultant||'RDB Hyundai'}${o.consultantPhone?(' ('+fmtPh(o.consultantPhone)+')'):''}\nRD Motors Pvt. Ltd. \u2014 RDB Hyundai \u00B7 GSTIN 19AACCR6454J1ZZ`;
   return m;}
 function openWa(o,url){var phone=(o.custPhone||'').replace(/\D/g,'');var wa=(phone.length>=10?'https://wa.me/91'+phone.slice(-10):'https://wa.me/')+'?text='+encodeURIComponent(waMessage(o,url));
   var win=window.open(wa,'_blank'); if(!win){ location.href=wa; } }
@@ -785,8 +883,11 @@ function toast(m,err){const t=document.getElementById('toast');t.textContent=m;t
 /* ===== init ===== */
 function wireEvents(){
   var byId=function(x){return document.getElementById(x);};
-  ['consultant','custName','f_exch','f_festive','f_down'].forEach(function(id){var el=byId(id);if(el)el.addEventListener('input',render);});
-  ['consultantPhone','custPhone'].forEach(function(id){var el=byId(id);if(el)el.addEventListener('input',function(){var v=(this.value||'').replace(/\D/g,'').slice(0,10);if(v!==this.value)this.value=v;this.classList.toggle('invalid',v.length>0&&v.length<10);render();});});
+  ['custName','f_exch','f_festive','f_down'].forEach(function(id){var el=byId(id);if(el)el.addEventListener('input',render);});
+  var _cs=byId('consultantSel'); if(_cs) _cs.addEventListener('change',onSelChange);
+  var _co=byId('consultantOther'); if(_co) _co.addEventListener('input',syncConsultant);
+  ['consultantPhone','custPhone'].forEach(function(id){var el=byId(id);if(el)el.addEventListener('input',function(){var v=(this.value||'').replace(/\D/g,'').slice(0,10);if(v!==this.value)this.value=v;this.classList.toggle('invalid',v.length>0&&v.length<10);if(id==='consultantPhone'){rememberSc();mirrorToCustomer();}render();});});
+  restoreSc();
   var fr=byId('f_rate'); if(fr) fr.addEventListener('change',render);
   ['f_roadtax_man','f_ins_man'].forEach(function(id){var el=byId(id);if(el)el.addEventListener('input',function(){var v=(this.value||'').replace(/[^0-9]/g,'');if(v!==this.value)this.value=v;render();});});
   byId('f_fuel').addEventListener('change',onFuel);
