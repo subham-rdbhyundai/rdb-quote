@@ -148,6 +148,10 @@ tr:last-child td{border-bottom:0}
 tr.conflict td{background:#fff6f6}
 tr.conflict td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
 .alias{font-size:10.5px; color:var(--muted2); font-weight:400}
+th.sortable{cursor:pointer; user-select:none}
+th.sortable:hover{color:var(--hy)}
+th.sortable.on{color:var(--hy)}
+th .ar{margin-left:3px; font-size:8px}
 .kpi .k .q{display:inline-block; width:14px; height:14px; line-height:12px; text-align:center; padding:0;
   border:1px solid var(--line); border-radius:50%; color:var(--muted2); font-size:9px; cursor:pointer;
   margin-left:4px; background:#fff; font-family:var(--body); vertical-align:middle}
@@ -239,12 +243,12 @@ a{color:var(--hy2)}
   <div class="two">
     <div class="panel">
       <h2>Consultant activity</h2>
-      <div class="hint">Within the selected date range. Sorted by quotes made.</div>
+      <div class="hint">Within the selected date range. Click any column heading to sort.</div>
       <div class="scroll"><table id="tCon"></table></div>
     </div>
     <div class="panel">
       <h2>Model demand</h2>
-      <div class="hint">Share of quotes in the selected range.</div>
+      <div class="hint" id="modHint"></div>
       <div class="scroll"><table id="tMod"></table></div>
     </div>
   </div>
@@ -275,7 +279,7 @@ a{color:var(--hy2)}
 
   <div class="panel">
     <h2>Variant demand</h2>
-    <div class="hint">Within the selected date range.</div>
+    <div class="hint" id="varHint"></div>
     <div class="scroll"><table id="tVar"></table></div>
   </div>
 
@@ -333,6 +337,9 @@ var QRY = '';
 var CQ = '', RQ = '', DQ = '';   // one search per list
 
 /* these lists are all-time, so the search at the top doesn't reach them */
+function custKey(r){ return r.custPhone ? ('p:'+r.custPhone) : ('q:'+r.quoteNo+'|'+r.ts); }
+var CSORT={k:'n',dir:-1};
+
 function groupHit(g,q){
   if(!q) return true;
   var bits=[g.name||'', (g.names||[]).join(' '), (g.alt||[]).join(' '),
@@ -618,26 +625,50 @@ function renderConsultants(rows){
   var by={};
   rows.forEach(function(r){
     var c=r._ck;
-    if(!by[c]) by[c]={n:0,val:0,ph:{},last:null};
+    if(!by[c]) by[c]={n:0,val:0,cust:{},last:null};
     by[c].n++; by[c].val+=Number(r.netPayable)||0;
-    if(r.custPhone) by[c].ph[r.custPhone]=(by[c].ph[r.custPhone]||0)+1;
+    var k=custKey(r);
+    if(!by[c].cust[k]) by[c].cust[k]={q:0,models:{}};
+    by[c].cust[k].q++;
+    if(r.model) by[c].cust[k].models[r.model]=1;
     var d=dOf(r); if(d && (!by[c].last || d>by[c].last)) by[c].last=d;
   });
   var list=Object.keys(by).map(function(c){
-    var o=by[c], phones=Object.keys(o.ph);
-    var dupCust=phones.filter(function(p){ return o.ph[p]>1; }).length;
+    var o=by[c], keys=Object.keys(o.cust);
+    var again=0, multi=0;
+    keys.forEach(function(k){
+      var cu=o.cust[k], nm=Object.keys(cu.models).length;
+      if(nm>1) multi++;              // asked about more than one model
+      else if(cu.q>1) again++;       // same model, quoted again
+    });
     return {c:c, name:(CMAP[c]&&CMAP[c].name)||'(not named)',
             aliases:(CMAP[c]?CMAP[c].aliases.length:1),
-            n:o.n, val:o.val, uniq:phones.length, dup:dupCust, last:o.last};
-  }).sort(function(a,b){ return b.n-a.n; });
+            n:o.n, val:o.val, uniq:keys.length, dup:again, multi:multi, last:o.last};
+  }).sort(function(x,y){
+    var k=CSORT.k, d=CSORT.dir;
+    var av=(k==='name')?x.name.toLowerCase():(k==='last'?(x.last||0):x[k]);
+    var bv=(k==='name')?y.name.toLowerCase():(k==='last'?(y.last||0):y[k]);
+    if(av<bv) return -1*d; if(av>bv) return 1*d;
+    return y.n-x.n;
+  });
 
   if(!list.length){ $('tCon').innerHTML=''; $('tCon').parentNode.innerHTML='<div class="empty">No quotes in this range.</div>'; return; }
   var max=list[0].n;
+  function th(k,label,cls,help){
+    var on=CSORT.k===k;
+    return '<th class="'+(cls||'')+' sortable'+(on?' on':'')+'" data-s="'+k+'"'+(help?' title="'+esc(help)+'"':'')+'>'+
+           label+(on?'<span class="ar">'+(CSORT.dir<0?'\u25be':'\u25b4')+'</span>':'')+'</th>';
+  }
   $('tCon').innerHTML=
-    '<thead><tr><th>Consultant</th><th>Quotes</th><th></th>'+
-    '<th class="num" title="Different customers this consultant quoted">Customers</th>'+
-    '<th class="num" title="Customers this consultant quoted more than once">Re-quoted</th>'+
-    '<th class="num">Value</th><th>Last quote</th></tr></thead><tbody>'+
+    '<thead><tr>'+
+    th('name','Consultant')+
+    th('n','Quotes','num')+'<th></th>'+
+    th('uniq','Customers','num','Different customers quoted \u2014 counted once each, however many quotes they got')+
+    th('dup','Re-quoted','num','Customers given more than one quote for the SAME model \u2014 a revision or a repeat')+
+    th('multi','Comparing','num','Customers quoted for MORE THAN ONE model, e.g. Creta and Alcazar \u2014 still deciding')+
+    th('val','Value','num')+
+    th('last','Last quote')+
+    '</tr></thead><tbody>'+
     list.map(function(x){
       return '<tr><td class="nm">'+esc(x.name)+
           (function(){
@@ -652,40 +683,58 @@ function renderConsultants(rows){
         '<td style="width:90px"><div class="bar"><i style="width:'+Math.round(x.n/max*100)+'%"></i></div></td>'+
         '<td class="num">'+x.uniq+'</td>'+
         '<td class="num">'+(x.dup? '<span class="badge b-warn">'+x.dup+'</span>' : '<span class="dim">0</span>')+'</td>'+
+        '<td class="num">'+(x.multi? '<span class="badge b-ok">'+x.multi+'</span>' : '<span class="dim">0</span>')+'</td>'+
         '<td class="num">'+shortInr(x.val)+'</td>'+
         '<td class="dim">'+fmtD(x.last)+'</td></tr>';
     }).join('')+'</tbody>';
 }
 
 function renderModels(rows){
-  var by={};
-  rows.forEach(function(r){ var m=r.model||'(none)'; by[m]=(by[m]||0)+1; });
-  var list=Object.keys(by).map(function(m){ return {m:m,n:by[m]}; }).sort(function(a,b){ return b.n-a.n; });
+  var by={}, allCust={};
+  rows.forEach(function(r){
+    var m=r.model||'(none)', k=custKey(r);
+    allCust[k]=1;
+    if(!by[m]) by[m]={};
+    by[m][k]=1;                       // same customer, same model, many quotes = one
+  });
+  var tot=Object.keys(allCust).length;
+  var list=Object.keys(by).map(function(m){ return {m:m, n:Object.keys(by[m]).length}; })
+    .sort(function(a,b){ return b.n-a.n; });
   if(!list.length){ $('tMod').innerHTML='<tbody><tr><td class="empty">No quotes in this range.</td></tr></tbody>'; return; }
-  var tot=rows.length, max=list[0].n;
-  $('tMod').innerHTML='<thead><tr><th>Model</th><th class="num">Quotes</th><th></th><th class="num">Share</th></tr></thead><tbody>'+
+  var max=list[0].n;
+  $('tMod').innerHTML='<thead><tr><th>Model</th><th class="num">Customers</th><th></th><th class="num">Share</th></tr></thead><tbody>'+
     list.map(function(x){
       return '<tr><td class="nm">'+esc(x.m)+'</td><td class="num"><b>'+x.n+'</b></td>'+
         '<td style="width:80px"><div class="bar"><i style="width:'+Math.round(x.n/max*100)+'%"></i></div></td>'+
         '<td class="num dim">'+(tot?Math.round(x.n/tot*100):0)+'%</td></tr>';
     }).join('')+'</tbody>';
+  $('modHint').innerHTML='How many <b>different customers</b> were quoted each model. Repeat quotes to the same '+
+    'customer count once. Someone weighing two models counts in both, so the shares add up to over 100%. '+
+    'Base: <b>'+tot+'</b> customers in this range.';
 }
 
 function renderVariants(rows){
-  var by={};
+  var by={}, allCust={};
   rows.forEach(function(r){
-    var k=(r.model||'(none)')+' \u2014 '+(r.variant||'(none)');
-    if(!by[k]) by[k]={n:0,val:0};
-    by[k].n++; by[k].val+=Number(r.netPayable)||0;
+    var k=(r.model||'(none)')+' \u2014 '+(r.variant||'(none)'), c=custKey(r);
+    allCust[c]=1;
+    if(!by[k]) by[k]={cust:{}, val:0, q:0};
+    by[k].cust[c]=1;
+    by[k].val+=Number(r.netPayable)||0; by[k].q++;
   });
-  var list=Object.keys(by).map(function(k){ return {k:k,n:by[k].n,val:by[k].val}; })
-    .sort(function(a,b){ return b.n-a.n; });
+  var tot=Object.keys(allCust).length;
+  var list=Object.keys(by).map(function(k){
+      return {k:k, n:Object.keys(by[k].cust).length, avg:by[k].val/by[k].q};
+    }).sort(function(a,b){ return b.n-a.n; });
   if(!list.length){ $('tVar').innerHTML='<tbody><tr><td class="empty">No quotes in this range.</td></tr></tbody>'; return; }
-  $('tVar').innerHTML='<thead><tr><th>Model &amp; variant</th><th class="num">Quotes</th><th class="num">Avg net payable</th></tr></thead><tbody>'+
+  $('tVar').innerHTML='<thead><tr><th>Model &amp; variant</th><th class="num">Customers</th><th class="num">Share</th><th class="num">Avg net payable</th></tr></thead><tbody>'+
     list.map(function(x){
       return '<tr><td class="nm">'+esc(x.k)+'</td><td class="num"><b>'+x.n+'</b></td>'+
-        '<td class="num">'+inr(x.val/x.n)+'</td></tr>';
+        '<td class="num dim">'+(tot?Math.round(x.n/tot*100):0)+'%</td>'+
+        '<td class="num">'+inr(x.avg)+'</td></tr>';
     }).join('')+'</tbody>';
+  $('varHint').innerHTML='Different customers quoted each variant \u2014 repeat quotes to the same customer count once. '+
+    'A customer comparing variants counts in each, so shares total over 100%. Base: <b>'+tot+'</b> customers.';
 }
 
 /* --- repeat customers: all-time, by phone --- */
@@ -1050,6 +1099,13 @@ function wire(){
       clearTimeout(tt); tt=setTimeout(function(){ set(v); render(); },180);
     });
   }
+  $('tCon').addEventListener('click',function(e){
+    var h=e.target.closest('th[data-s]'); if(!h) return;
+    var k=h.getAttribute('data-s');
+    if(CSORT.k===k) CSORT.dir=-CSORT.dir;
+    else CSORT={k:k, dir:(k==='name')?1:-1};
+    render();
+  });
   bindList('qClash',function(v){ CQ=v; });
   bindList('qRep',  function(v){ RQ=v; });
   bindList('qDup',  function(v){ DQ=v; });
