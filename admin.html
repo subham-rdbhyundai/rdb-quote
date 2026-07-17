@@ -253,6 +253,12 @@ a{color:var(--hy2)}
     <div class="scroll"><table id="tRep"></table></div>
   </div>
 
+  <div class="panel" id="dupPanel" style="display:none">
+    <h2>Possible same person</h2>
+    <div class="hint" id="dupHint"></div>
+    <div class="scroll"><table id="tDup"></table></div>
+  </div>
+
   <div class="panel">
     <h2>Variant demand</h2>
     <div class="hint">Within the selected date range.</div>
@@ -507,6 +513,7 @@ function render(){
   renderModels(rows);
   renderVariants(rows);
   renderRepeats();
+  renderDup();
   renderAll(rows);
 }
 
@@ -711,6 +718,63 @@ function renderRepeats(){
           (conflict?' <span class="badge b-bad">'+g.ckeys.length+'</span>':'')+'</td>'+
         '<td class="dim">'+esc(g.models.join(', '))+'</td>'+
         '<td class="dim">'+fmtD(g.first)+'</td>'+
+        '<td class="dim">'+fmtD(g.last)+'</td></tr>';
+    }).join('')+'</tbody>';
+}
+
+/* Same customer name, but on more than one phone number. These are NOT merged and
+   do not affect any count - they are only flagged so you can eyeball them. Two
+   different buyers really can share a name, so this stays a suggestion. */
+function sameNameGroups(){
+  var by={};
+  ROWS.forEach(function(r){
+    var n=normName(r.custName);
+    if(!n || n.length<3 || !r.custPhone) return;
+    if(!by[n]) by[n]={disp:{}, phones:{}, ckeys:{}, models:{}, rows:[]};
+    var g=by[n];
+    g.disp[String(r.custName).trim()]=(g.disp[String(r.custName).trim()]||0)+1;
+    g.phones[r.custPhone]=(g.phones[r.custPhone]||0)+1;
+    g.ckeys[r._ck]=1;
+    if(r.model) g.models[r.model]=1;
+    g.rows.push(r);
+  });
+  return Object.keys(by).map(function(n){
+    var g=by[n];
+    var ds=g.rows.map(dOf).filter(Boolean).sort(function(x,y){ return x-y; });
+    var disp=Object.keys(g.disp).sort(function(x,y){ return g.disp[y]-g.disp[x]; });
+    var keys=Object.keys(g.ckeys);
+    return {
+      name:disp[0], phones:Object.keys(g.phones), counts:g.phones,
+      ckeys:keys,
+      consultants:keys.map(function(k){ return (CMAP[k]&&CMAP[k].name)||'(not named)'; }),
+      models:Object.keys(g.models), total:g.rows.length, last:ds[ds.length-1]||null
+    };
+  }).filter(function(g){ return g.phones.length>1; })
+    .sort(function(x,y){ return (y.phones.length-x.phones.length) || (y.total-x.total); });
+}
+
+function renderDup(){
+  var groups=sameNameGroups();
+  if(CON) groups=groups.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+  if(!groups.length){ $('dupPanel').style.display='none'; return; }
+  $('dupPanel').style.display='';
+  var who = CON ? ((CMAP[CON]&&CMAP[CON].name)||'') : '';
+  $('dupHint').innerHTML='The same customer name on more than one phone number'+
+    (who? ', involving <b>'+esc(who)+'</b>':'')+
+    ' \u2014 possibly one customer entered twice, possibly two different people. '+
+    '<b>Nothing is merged</b> and no count changes; this is only for you to check. '+
+    '<b>'+groups.length+'</b> to look at.';
+  $('tDup').innerHTML=
+    '<thead><tr><th>Name</th><th>Phone numbers</th><th class="num">Quotes</th>'+
+    '<th>Quoted by</th><th>Models</th><th>Latest</th></tr></thead><tbody>'+
+    groups.map(function(g){
+      return '<tr><td class="nm">'+esc(g.name)+'</td>'+
+        '<td>'+g.phones.map(function(p){
+            return '<span class="lnk" data-cust="'+esc(p)+'">'+esc(p)+'</span> <span class="alias">\u00d7'+g.counts[p]+'</span>';
+          }).join('<br>')+'</td>'+
+        '<td class="num"><b>'+g.total+'</b></td>'+
+        '<td class="dim">'+esc(g.consultants.join(', '))+'</td>'+
+        '<td class="dim">'+esc(g.models.join(', '))+'</td>'+
         '<td class="dim">'+fmtD(g.last)+'</td></tr>';
     }).join('')+'</tbody>';
 }
