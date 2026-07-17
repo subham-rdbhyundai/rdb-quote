@@ -326,7 +326,13 @@ function login(){
       $('go').disabled=false; $('go').textContent='Open dashboard';
       return;
     }
-    PW=pw; ROWS=(d.rows||[]);
+    if(!Array.isArray(d.rows)){
+      // Old Code.gs is still deployed: it answers {ok:true} to anything and sends no rows.
+      $('gerr').textContent='Apps Script is still running the old code. Redeploy it: Deploy \u2192 Manage deployments \u2192 pencil \u2192 Version: New version \u2192 Deploy.';
+      $('go').disabled=false; $('go').textContent='Open dashboard';
+      return;
+    }
+    PW=pw; ROWS=d.rows;
     $('pw').value='';
     $('gate').style.display='none';
     $('app').style.display='block';
@@ -342,7 +348,7 @@ function refresh(){
   if(!PW) return;
   $('refresh').disabled=true; $('refresh').textContent='Refreshing…';
   fetchData(PW).then(function(d){
-    if(d && d.ok===true){ ROWS=d.rows||[]; stamp(d.generated); buildConsultants(); render(); }
+    if(d && d.ok===true && Array.isArray(d.rows)){ ROWS=d.rows; stamp(d.generated); buildConsultants(); render(); }
     $('refresh').disabled=false; $('refresh').textContent='Refresh';
   }).catch(function(){
     $('refresh').disabled=false; $('refresh').textContent='Refresh';
