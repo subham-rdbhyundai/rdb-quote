@@ -418,7 +418,7 @@ var ROSTER=[
  {n:'Sandip Bhowmick',o:'Tamluk'},{n:'Amit Kumar Bag',o:'Tamluk'},{n:'Mozahidul Islam',o:'Tamluk'},
  {n:'Satyajit Bera',o:'Contai'},{n:'Rajkamal Kar',o:'Contai'},
  {n:'Rajiv Bhunia',o:'Contai'},{n:'Sabder Ali Khan',o:'Contai'},{n:'Sumit Ghorai',o:'Contai'},
- {n:'Debashish Bera',o:'Contai',x:true}
+ {n:'Debashish Bera',o:'Contai',to:'Satyajit Bera'}
 ];
 var OUTLETS=['Haldia','Tamluk','Contai'];
 
@@ -486,7 +486,7 @@ function buildIdentities(){
   ROWS.forEach(function(r){
     var pk=phoneKey(r), nk=nameKey(r);
     var k=find(pk || nk || 'n:unnamed');
-    r._ck=k;
+    r._pk=k;                                   // provisional group
     if(!g[k]) g[k]={names:{}, phones:{}, count:0};
     var nm=String(r.consultant||'').trim() || '(not named)';
     g[k].names[nm]=(g[k].names[nm]||0)+1;
@@ -494,23 +494,43 @@ function buildIdentities(){
     g[k].count++;
   });
 
+  /* Re-key each provisional group by the roster person it resolves to, so two
+     groups that turn out to be the same consultant merge into one row. A roster
+     entry carrying `to` has left and their work was handed to someone else. */
+  var route={};                                // provisional key -> final key
   Object.keys(g).forEach(function(k){
     var o=g[k], names=Object.keys(o.names);
-    // fullest name wins: most words, then most used, then longest
     names.sort(function(x,y){
       var wx=x.split(/\s+/).length, wy=y.split(/\s+/).length;
       if(wy!==wx) return wy-wx;
       if(o.names[y]!==o.names[x]) return o.names[y]-o.names[x];
       return y.length-x.length;
     });
-    var hit=matchRoster(names);
-    CMAP[k]={ name: hit? hit.n : ('Others - '+names[0]),
-              roster: hit? hit.n : null,
-              outlet: hit? hit.o : 'Haldia',
-              former: hit? !!hit.x : false,
-              aliases:names, phones:Object.keys(o.phones), count:o.count };
+    var hit=matchRoster(names), moved=false;
+    if(hit && hit.to){
+      var dest=null;
+      for(var i=0;i<ROSTER.length;i++) if(ROSTER[i].n===hit.to) dest=ROSTER[i];
+      if(dest){ hit=dest; moved=true; }
+    }
+    var fk = hit ? ('r:'+hit.n) : k;
+    route[k]=fk;
+    if(!CMAP[fk]) CMAP[fk]={ name: hit? hit.n : ('Others - '+names[0]),
+                             roster: hit? hit.n : null,
+                             outlet: hit? hit.o : 'Haldia',
+                             aliases:[], phones:[], count:0, xfer:0 };
+    var M=CMAP[fk];
+    M.count+=o.count;
+    if(moved){
+      M.xfer+=o.count;                         // inherited from a consultant who has left
+    } else {
+      names.forEach(function(n){ if(M.aliases.indexOf(n)<0) M.aliases.push(n); });
+      Object.keys(o.phones).forEach(function(p){ if(M.phones.indexOf(p)<0) M.phones.push(p); });
+    }
   });
-  ROWS.forEach(function(r){ r._cn=(CMAP[r._ck]&&CMAP[r._ck].name)||r.consultant||'(not named)'; });
+  ROWS.forEach(function(r){
+    r._ck=route[r._pk]||r._pk;
+    r._cn=(CMAP[r._ck]&&CMAP[r._ck].name)||r.consultant||'(not named)';
+  });
 }
 
 /* ---------- data loading ---------- */
@@ -757,12 +777,15 @@ function renderConsultants(rows){
       return '<tr><td class="nm">'+esc(x.name)+
           (function(){
              var m=CMAP[x.c]; if(!m) return '';
-             var bits=[];
-             if(m.former) bits.push('former');
-             if(m.aliases.length>1) bits.push(m.aliases.length+' spellings');
-             if(m.phones.length>1) bits.push(m.phones.length+' numbers');
-             return bits.length? ' <span class="alias" title="Typed as: '+esc(m.aliases.join(', '))+
-                    (m.phones.length>1?'&#10;Numbers used: '+esc(m.phones.join(', ')):'')+'">'+bits.join(' \u00b7 ')+'</span>':'';
+             var bits=[], tip=[];
+             if(m.xfer){
+               bits.push('incl. '+m.xfer+' transferred');
+               tip.push(m.xfer+' quote'+(m.xfer===1?'':'s')+' transferred in from a consultant who has left the company. '+
+                        'They count towards this consultant now, but they are not his own work \u2014 keep that in mind when judging performance.');
+             }
+             if(m.aliases.length>1){ bits.push(m.aliases.length+' spellings'); tip.push('Typed as: '+m.aliases.join(', ')); }
+             if(m.phones.length>1){ bits.push(m.phones.length+' numbers'); tip.push('Numbers used: '+m.phones.join(', ')); }
+             return bits.length? ' <span class="alias" title="'+esc(tip.join(' \u2014 '))+'">'+bits.join(' \u00b7 ')+'</span>':'';
            })()+'</td>'+
         '<td class="dim">'+esc(x.outlet)+'</td>'+
         '<td class="num"><b>'+x.n+'</b></td>'+
@@ -1145,7 +1168,7 @@ function buildConsultants(){
   CONS=CONS.filter(function(k){ return CMAP[k]; });
   var h='<label><input type="checkbox" id="mAll"> <b>All consultants</b></label><div class="sep"></div>';
   OUTLETS.forEach(function(o){
-    var list=keysIn(o).map(function(k){ return {k:k, n:CMAP[k].name, r:CMAP[k].roster, x:CMAP[k].former}; })
+    var list=keysIn(o).map(function(k){ return {k:k, n:CMAP[k].name, r:CMAP[k].roster, x:false}; })
       .sort(function(x,y){
         if(!!x.r!==!!y.r) return x.r?-1:1;          // roster people first, Others after
         return x.n.localeCompare(y.n);
@@ -1161,7 +1184,7 @@ function buildConsultants(){
   });
   // roster names that made no quotes at all
   var seen={}; Object.keys(CMAP).forEach(function(k){ if(CMAP[k].roster) seen[CMAP[k].roster]=1; });
-  var idle=ROSTER.filter(function(R){ return !seen[R.n] && !R.x; });
+  var idle=ROSTER.filter(function(R){ return !seen[R.n] && !R.to; });
   if(idle.length) h+='<div class="zero" style="padding:4px 7px;font-size:11.5px">No quotes yet: '+
     esc(idle.map(function(R){ return R.n+' ('+R.o+')'; }).join(', '))+'</div>';
   $('mselPop').innerHTML=h;
