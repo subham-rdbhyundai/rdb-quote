@@ -243,7 +243,7 @@ a{color:var(--hy2)}
   <div class="two">
     <div class="panel">
       <h2>Consultant activity</h2>
-      <div class="hint">Within the selected date range. Click any column heading to sort.</div>
+      <div class="hint">Within the selected date range. <b>Customers = Once only + Re-quoted + Comparing.</b> Click any column heading to sort.</div>
       <div class="scroll"><table id="tCon"></table></div>
     </div>
     <div class="panel">
@@ -643,7 +643,10 @@ function renderConsultants(rows){
     });
     return {c:c, name:(CMAP[c]&&CMAP[c].name)||'(not named)',
             aliases:(CMAP[c]?CMAP[c].aliases.length:1),
-            n:o.n, val:o.val, uniq:keys.length, dup:again, multi:multi, last:o.last};
+            n:o.n, val:o.val, uniq:keys.length, dup:again, multi:multi,
+            once:keys.length-again-multi,                       // got one quote, nothing more
+            avg:(keys.length? o.n/keys.length : 0),             // quotes per customer
+            last:o.last};
   }).sort(function(x,y){
     var k=CSORT.k, d=CSORT.dir;
     var av=(k==='name')?x.name.toLowerCase():(k==='last'?(x.last||0):x[k]);
@@ -663,9 +666,11 @@ function renderConsultants(rows){
     '<thead><tr>'+
     th('name','Consultant')+
     th('n','Quotes','num')+'<th></th>'+
-    th('uniq','Customers','num','Different customers quoted \u2014 counted once each, however many quotes they got')+
+    th('uniq','Customers','num','Different customers quoted \u2014 counted once each, however many quotes they got. Customers = Once only + Re-quoted + Comparing.')+
+    th('once','Once only','num','Customers who received exactly one quote and nothing more.')+
     th('dup','Re-quoted','num','Customers given more than one quote for the SAME model \u2014 a revision or a repeat')+
     th('multi','Comparing','num','Customers quoted for MORE THAN ONE model, e.g. Creta and Alcazar \u2014 still deciding')+
+    th('avg','Per customer','num','Quotes divided by customers. 2.7 means each customer received 2.7 quotes on average. A high number means the same lead is being quoted over and over.')+
     th('val','Value','num')+
     th('last','Last quote')+
     '</tr></thead><tbody>'+
@@ -682,8 +687,10 @@ function renderConsultants(rows){
         '<td class="num"><b>'+x.n+'</b></td>'+
         '<td style="width:90px"><div class="bar"><i style="width:'+Math.round(x.n/max*100)+'%"></i></div></td>'+
         '<td class="num">'+x.uniq+'</td>'+
+        '<td class="num dim">'+x.once+'</td>'+
         '<td class="num">'+(x.dup? '<span class="badge b-warn">'+x.dup+'</span>' : '<span class="dim">0</span>')+'</td>'+
         '<td class="num">'+(x.multi? '<span class="badge b-ok">'+x.multi+'</span>' : '<span class="dim">0</span>')+'</td>'+
+        '<td class="num"><b'+(x.avg>=3?' style="color:var(--bad)"':'')+'>'+x.avg.toFixed(1)+'</b></td>'+
         '<td class="num">'+shortInr(x.val)+'</td>'+
         '<td class="dim">'+fmtD(x.last)+'</td></tr>';
     }).join('')+'</tbody>';
