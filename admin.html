@@ -250,20 +250,26 @@ a{color:var(--hy2)}
   </div>
 
   <div class="panel" id="clashPanel" style="display:none">
-    <h2>Quoted by more than one consultant</h2>
-    <div class="hint" id="clashHint"></div>
+    <div class="panel-head">
+      <div><h2>Quoted by more than one consultant</h2><div class="hint" id="clashHint"></div></div>
+      <input type="search" id="qClash" placeholder="Search this list…">
+    </div>
     <div class="scroll"><table id="tClash"></table></div>
   </div>
 
   <div class="panel" id="repPanel">
-    <h2>Quoted more than once by the same consultant</h2>
-    <div class="hint" id="repHint"></div>
+    <div class="panel-head">
+      <div><h2>Quoted more than once by the same consultant</h2><div class="hint" id="repHint"></div></div>
+      <input type="search" id="qRep" placeholder="Search this list…">
+    </div>
     <div class="scroll"><table id="tRep"></table></div>
   </div>
 
   <div class="panel" id="dupPanel" style="display:none">
-    <h2>Possible same person</h2>
-    <div class="hint" id="dupHint"></div>
+    <div class="panel-head">
+      <div><h2>Possible same person</h2><div class="hint" id="dupHint"></div></div>
+      <input type="search" id="qDup" placeholder="Search this list…">
+    </div>
     <div class="scroll"><table id="tDup"></table></div>
   </div>
 
@@ -324,6 +330,19 @@ var ROWS = [];        // every submission
 var RANGE = '30';     // default filter
 var CON = '';
 var QRY = '';
+var CQ = '', RQ = '', DQ = '';   // one search per list
+
+/* these lists are all-time, so the search at the top doesn't reach them */
+function groupHit(g,q){
+  if(!q) return true;
+  var bits=[g.name||'', (g.names||[]).join(' '), (g.alt||[]).join(' '),
+            (g.phone||''), (g.phones||[]).join(' '),
+            (g.consultants||[]).join(' '), (g.models||[]).join(' ')];
+  return bits.join(' ').toLowerCase().indexOf(q)>-1;
+}
+function matchNote(shown,total,q){
+  return q? ' \u00b7 showing <b>'+shown+'</b> of '+total : '';
+}
 
 var RANGES = [
   {k:'today', t:'Today'},
@@ -706,17 +725,21 @@ function repeatGroups(){
 }
 
 function renderRepeats(){
-  var groups=repeatGroups().filter(function(g){ return g.ckeys.length===1; });   // clashes live in their own panel
-  if(CON) groups=groups.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+  var all=repeatGroups().filter(function(g){ return g.ckeys.length===1; });   // clashes live in their own panel
+  if(CON) all=all.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+  var groups=all.filter(function(g){ return groupHit(g,RQ); });
 
   var who = CON ? ((CMAP[CON]&&CMAP[CON].name)||'this consultant') : null;
   $('repHint').innerHTML = (who
       ? 'Customers <b>'+esc(who)+'</b> quoted more than once, where nobody else quoted them too. '
       : 'One consultant quoted the same phone number more than once \u2014 nobody else was involved. ')+
     'All-time, the date filter does not apply. '+
-    (groups.length? '<b>'+groups.length+'</b> found. Click a name to pick the final quote.':'');
+    (all.length? '<b>'+all.length+'</b> found. Click a name to pick the final quote.':'')+
+    matchNote(groups.length,all.length,RQ);
   if(!groups.length){
-    $('tRep').innerHTML='<tbody><tr><td class="empty">'+(who? 'Nothing here for '+esc(who)+'.' : 'Nothing here.')+'</td></tr></tbody>';
+    $('tRep').innerHTML='<tbody><tr><td class="empty">'+
+      (RQ? 'Nothing matches \u201c'+esc(RQ)+'\u201d in this list.' : (who? 'Nothing here for '+esc(who)+'.' : 'Nothing here.'))+
+      '</td></tr></tbody>';
     return;
   }
   $('tRep').innerHTML=
@@ -796,17 +819,20 @@ function clashGroups(){
 }
 
 function renderClash(){
-  var groups=clashGroups();
-  if(CON) groups=groups.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
-  if(!groups.length){ $('clashPanel').style.display='none'; return; }
+  var all=clashGroups();
+  if(CON) all=all.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+  if(!all.length){ $('clashPanel').style.display='none'; return; }
   $('clashPanel').style.display='';
+  var groups=all.filter(function(g){ return groupHit(g,CQ); });
   var who=CON?((CMAP[CON]&&CMAP[CON].name)||''):'';
-  var sure=groups.filter(function(g){ return g.sure; }).length;
+  var sure=all.filter(function(g){ return g.sure; }).length;
   $('clashHint').innerHTML='The same customer received quotes from two or more different consultants'+
     (who? ', involving <b>'+esc(who)+'</b>':'')+'. All-time. '+
     '<b>'+sure+'</b> matched on phone number (certain)'+
-    (groups.length-sure? ', <b>'+(groups.length-sure)+'</b> on name only (worth checking \u2014 two buyers can share a name).':'.')+
-    ' Click a name or number to see every quote and pick the final one.';
+    (all.length-sure? ', <b>'+(all.length-sure)+'</b> on name only (worth checking \u2014 two buyers can share a name).':'.')+
+    ' Click a name or number to see every quote and pick the final one.'+
+    matchNote(groups.length,all.length,CQ);
+  if(!groups.length){ $('tClash').innerHTML='<tbody><tr><td class="empty">Nothing matches \u201c'+esc(CQ)+'\u201d in this list.</td></tr></tbody>'; return; }
   $('tClash').innerHTML=
     '<thead><tr><th>Customer</th><th>Phone</th><th class="num">Consultants</th><th>Who</th>'+
     '<th class="num">Quotes</th><th>Models</th><th>Latest</th><th>Matched on</th></tr></thead><tbody>'+
@@ -825,15 +851,18 @@ function renderClash(){
 }
 
 function renderDup(){
-  var groups=sameNameGroups().filter(function(g){ return g.ckeys.length===1; });  // 2+ consultants -> tracker above
-  if(CON) groups=groups.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
-  if(!groups.length){ $('dupPanel').style.display='none'; return; }
+  var all=sameNameGroups().filter(function(g){ return g.ckeys.length===1; });  // 2+ consultants -> tracker above
+  if(CON) all=all.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+  if(!all.length){ $('dupPanel').style.display='none'; return; }
   $('dupPanel').style.display='';
+  var groups=all.filter(function(g){ return groupHit(g,DQ); });
   var who = CON ? ((CMAP[CON]&&CMAP[CON].name)||'') : '';
   $('dupHint').innerHTML='The same customer name on more than one phone number, all with the same consultant'+
     (who? ' (<b>'+esc(who)+'</b>)':'')+
     ' \u2014 possibly one customer entered twice, possibly two different people. '+
-    '<b>Nothing is merged</b> and no count changes. <b>'+groups.length+'</b> to look at.';
+    '<b>Nothing is merged</b> and no count changes. <b>'+all.length+'</b> to look at.'+
+    matchNote(groups.length,all.length,DQ);
+  if(!groups.length){ $('tDup').innerHTML='<tbody><tr><td class="empty">Nothing matches \u201c'+esc(DQ)+'\u201d in this list.</td></tr></tbody>'; return; }
   $('tDup').innerHTML=
     '<thead><tr><th>Name</th><th>Phone numbers</th><th class="num">Quotes</th>'+
     '<th>Quoted by</th><th>Models</th><th>Latest</th></tr></thead><tbody>'+
@@ -1014,6 +1043,16 @@ function wire(){
     clearTimeout(t);
     t=setTimeout(function(){ QRY=v; if(other && other.value!==v) other.value=v; render(); },180);
   }
+  function bindList(id,set){
+    var tt=null;
+    $(id).addEventListener('input',function(){
+      var v=this.value.trim().toLowerCase();
+      clearTimeout(tt); tt=setTimeout(function(){ set(v); render(); },180);
+    });
+  }
+  bindList('qClash',function(v){ CQ=v; });
+  bindList('qRep',  function(v){ RQ=v; });
+  bindList('qDup',  function(v){ DQ=v; });
   $('q').addEventListener('input',function(){ onSearch(this.value,$('q2')); });
   $('q2').addEventListener('input',function(){ onSearch(this.value,$('q')); });
   document.body.addEventListener('click',function(e){
