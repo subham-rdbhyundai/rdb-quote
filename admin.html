@@ -152,6 +152,34 @@ tr.conflict td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
   border:1px solid var(--line); border-radius:50%; color:var(--muted2); font-size:9px; cursor:help; margin-left:3px}
 
 .empty{padding:26px 10px; text-align:center; color:var(--muted2); font-size:13px}
+.lnk{color:var(--hy2); cursor:pointer; text-decoration:underline; text-underline-offset:2px}
+.lnk:hover{color:var(--acc)}
+.mbg{position:fixed; inset:0; background:rgba(10,26,43,.45); display:none; align-items:center;
+  justify-content:center; padding:18px; z-index:60}
+.mbg.show{display:flex}
+.mdl{background:var(--panel); border-radius:var(--r); max-width:860px; width:100%; max-height:86vh;
+  display:flex; flex-direction:column; box-shadow:0 24px 60px -18px rgba(0,44,95,.5)}
+.mdl-h{padding:16px 18px 12px; border-bottom:1px solid var(--line)}
+.mdl-h h3{font-size:16px; font-weight:700; color:var(--hy)}
+.mdl-h .sub{font-size:12px; color:var(--muted); margin-top:3px}
+.mdl-b{padding:8px 18px 14px; overflow:auto}
+.mdl-f{padding:11px 18px; border-top:1px solid var(--line); display:flex; gap:8px; justify-content:flex-end}
+.qrow{border:1px solid var(--line); border-radius:var(--r-sm); padding:10px 12px; margin:8px 0;
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.qrow.final{border-color:#cfe7db; background:#f6fbf8}
+.qrow.disc{opacity:.55; background:#fafbfc}
+.qrow .g{flex:1; min-width:190px}
+.qrow .t{font-weight:600; font-size:13px}
+.qrow .s{font-size:11.5px; color:var(--muted); margin-top:2px}
+.qrow .p{font-weight:700; font-size:13px; color:var(--hy); font-variant-numeric:tabular-nums}
+.mini{padding:6px 10px; border:1px solid var(--line); background:#fff; border-radius:99px;
+  font-size:11.5px; font-weight:600; color:var(--hy)}
+.mini:hover{border-color:var(--acc); color:var(--acc)}
+.mini.go{background:var(--hy); border-color:var(--hy); color:#fff}
+.mini.go:hover{filter:brightness(1.12); color:#fff}
+.mini:disabled{opacity:.45; cursor:not-allowed}
+.b-final{background:#eef7f2; color:var(--good); border:1px solid #cfe7db}
+.b-disc{background:#f1f4f7; color:var(--muted2); border:1px solid var(--line)}
 .foot{text-align:center; font-size:11px; color:var(--muted2); margin-top:22px}
 a{color:var(--hy2)}
 
@@ -245,6 +273,20 @@ a{color:var(--hy2)}
   <div class="foot">RDB Hyundai · RD Motors Pvt Ltd — internal use only</div>
 </div>
 
+<div class="mbg" id="cbg">
+  <div class="mdl">
+    <div class="mdl-h">
+      <h3 id="cTitle"></h3>
+      <div class="sub" id="cSub"></div>
+    </div>
+    <div class="mdl-b" id="cBody"></div>
+    <div class="mdl-f">
+      <button class="mini" id="cClear">Clear all marks</button>
+      <button class="mini go" id="cClose">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =======================================================================
    RDB Hyundai — Quotation Admin
@@ -297,22 +339,41 @@ var CMAP = {};   // key -> {name, aliases, phone, count}
 
 function normPhone(p){ return String(p==null?'':p).replace(/\D/g,'').slice(-10); }
 function normName(n){ return String(n==null?'':n).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
-function conKey(r){
-  var ph=normPhone(r.conPhone);
-  if(ph.length===10) return 'p:'+ph;
-  var nn=normName(r.consultant);
-  return 'n:'+(nn||'unnamed');
-}
+function phoneKey(r){ var p=normPhone(r.conPhone); return p.length===10 ? 'p:'+p : null; }
+function nameKey(r){ var n=normName(r.consultant); return n ? 'n:'+n : null; }
+
+/* Two quotes belong to the same consultant if they share a phone number OR the
+   same name. Those links chain: "Uttam Patra" on three different numbers all
+   join up through the name, and "Gopal"/"Gopal ch. Midya" join through the phone. */
 function buildIdentities(){
   CMAP={};
+  var parent={};
+  function find(x){
+    if(parent[x]===undefined) parent[x]=x;
+    while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; }
+    return x;
+  }
+  function union(x,y){ var a=find(x), b=find(y); if(a!==b) parent[a]=b; }
+
+  ROWS.forEach(function(r){
+    var pk=phoneKey(r), nk=nameKey(r);
+    if(pk) find(pk);
+    if(nk) find(nk);
+    if(pk && nk) union(pk,nk);       // this row ties its number to its name
+  });
+
   var g={};
   ROWS.forEach(function(r){
-    var k=conKey(r);
-    if(!g[k]) g[k]={phone:normPhone(r.conPhone), names:{}, count:0};
+    var pk=phoneKey(r), nk=nameKey(r);
+    var k=find(pk || nk || 'n:unnamed');
+    r._ck=k;
+    if(!g[k]) g[k]={names:{}, phones:{}, count:0};
     var nm=String(r.consultant||'').trim() || '(not named)';
     g[k].names[nm]=(g[k].names[nm]||0)+1;
+    if(pk) g[k].phones[pk.slice(2)]=1;
     g[k].count++;
   });
+
   Object.keys(g).forEach(function(k){
     var o=g[k], names=Object.keys(o.names);
     // fullest name wins: most words, then most used, then longest
@@ -322,13 +383,9 @@ function buildIdentities(){
       if(o.names[y]!==o.names[x]) return o.names[y]-o.names[x];
       return y.length-x.length;
     });
-    CMAP[k]={name:names[0], aliases:names, phone:o.phone, count:o.count};
+    CMAP[k]={name:names[0], aliases:names, phones:Object.keys(o.phones), count:o.count};
   });
-  ROWS.forEach(function(r){
-    var k=conKey(r);
-    r._ck=k;
-    r._cn=(CMAP[k]&&CMAP[k].name)||r.consultant||'(not named)';
-  });
+  ROWS.forEach(function(r){ r._cn=(CMAP[r._ck]&&CMAP[r._ck].name)||r.consultant||'(not named)'; });
 }
 
 /* ---------- data loading ---------- */
@@ -540,7 +597,14 @@ function renderConsultants(rows){
     '<th class="num">Value</th><th>Last quote</th></tr></thead><tbody>'+
     list.map(function(x){
       return '<tr><td class="nm">'+esc(x.name)+
-          (x.aliases>1? ' <span class="alias" title="Typed as: '+esc(CMAP[x.c].aliases.join(', '))+'">'+x.aliases+' spellings</span>':'')+'</td>'+
+          (function(){
+             var m=CMAP[x.c]; if(!m) return '';
+             var bits=[];
+             if(m.aliases.length>1) bits.push(m.aliases.length+' spellings');
+             if(m.phones.length>1) bits.push(m.phones.length+' numbers');
+             return bits.length? ' <span class="alias" title="Typed as: '+esc(m.aliases.join(', '))+
+                    (m.phones.length>1?'&#10;Numbers used: '+esc(m.phones.join(', ')):'')+'">'+bits.join(' \u00b7 ')+'</span>':'';
+           })()+'</td>'+
         '<td class="num"><b>'+x.n+'</b></td>'+
         '<td style="width:90px"><div class="bar"><i style="width:'+Math.round(x.n/max*100)+'%"></i></div></td>'+
         '<td class="num">'+x.uniq+'</td>'+
@@ -639,7 +703,7 @@ function renderRepeats(){
     groups.map(function(g){
       var conflict=g.ckeys.length>1;
       return '<tr'+(conflict?' class="conflict"':'')+'>'+
-        '<td class="nm">'+esc(g.names[0]||'(no name)')+
+        '<td class="nm"><span class="lnk" data-cust="'+esc(g.phone)+'">'+esc(g.names[0]||'(no name)')+'</span>'+
           (g.names.length>1?'<br><span class="alias" title="'+esc(g.names.slice(1).join(', '))+'">also: '+esc(g.names.slice(1).join(', ').slice(0,40))+'</span>':'')+'</td>'+
         '<td class="num">'+esc(g.phone)+'</td>'+
         '<td class="num"><b>'+g.count+'</b></td>'+
@@ -654,7 +718,8 @@ function renderRepeats(){
 function renderAll(rows){
   var list=rows.slice().sort(function(a,b){ return (dOf(b)||0)-(dOf(a)||0); });
   $('qHint').innerHTML=list.length+' quote'+(list.length===1?'':'s')+' shown \u00b7 newest first \u00b7 '+
-    '<b>repeat \u00d7N</b> means this customer\u2019s phone appears on N quotes in total';
+    '<b>repeat \u00d7N</b> = this customer\u2019s phone appears on N quotes \u00b7 '+
+    '<b>click a customer\u2019s name</b> to see all their quotes and pick the final one';
   if(!list.length){
     var msg;
     if(!ROWS.length){
@@ -677,14 +742,94 @@ function renderAll(rows){
     list.map(function(r){
       var nrep=r.custPhone? (seen[r.custPhone]||0) : 0;
       return '<tr><td class="dim">'+fmtDT(dOf(r))+'<br><span class="alias">'+esc(r.quoteNo)+'</span></td>'+
-        '<td class="nm">'+esc(r.custName||'\u2014')+
-          (nrep>1?' <span class="badge b-warn" title="This phone number appears on '+nrep+' quotes in total">repeat \u00d7'+nrep+'</span>':'')+'</td>'+
+        '<td class="nm">'+(r.custPhone?'<span class="lnk" data-cust="'+esc(r.custPhone)+'">'+esc(r.custName||'(no name)')+'</span>':esc(r.custName||'\u2014'))+
+          (nrep>1?' <span class="badge b-warn" title="This phone number appears on '+nrep+' quotes in total. Click the name to pick the final one.">repeat \u00d7'+nrep+'</span>':'')+
+          (r.status==='Final'?' <span class="badge b-final">FINAL</span>':'')+
+          (r.status==='Discarded'?' <span class="badge b-disc">discarded</span>':'')+'</td>'+
         '<td class="num">'+esc(r.custPhone||'\u2014')+'</td>'+
         '<td>'+esc(r.model)+' <span class="dim">'+esc(r.variant)+'</span></td>'+
         '<td>'+esc(r._cn||'\u2014')+'</td>'+
         '<td class="num">'+inr(r.netPayable)+'</td>'+
         '<td>'+(r.shareUrl?'<a href="'+esc(r.shareUrl)+'" target="_blank" rel="noopener">open</a>':'<span class="dim">—</span>')+'</td></tr>';
     }).join('')+'</tbody>';
+}
+
+/* ---------- one customer: see every quote, pick the final one ---------- */
+var CPHONE=null;
+
+function quotesFor(phone){
+  return ROWS.filter(function(r){ return r.custPhone===phone; })
+             .sort(function(a,b){ return (dOf(b)||0)-(dOf(a)||0); });
+}
+
+function openCustomer(phone){
+  CPHONE=phone;
+  $('cbg').classList.add('show');
+  renderCustomer();
+}
+function closeCustomer(){ $('cbg').classList.remove('show'); CPHONE=null; }
+
+function renderCustomer(){
+  var list=quotesFor(CPHONE);
+  if(!list.length){ closeCustomer(); return; }
+  var names={}; list.forEach(function(r){ if(r.custName) names[r.custName]=1; });
+  var nm=Object.keys(names);
+  var fin=list.filter(function(r){ return r.status==='Final'; }).length;
+
+  $('cTitle').textContent=(nm[0]||'(no name)')+'  \u00b7  '+CPHONE;
+  $('cSub').innerHTML=list.length+' quote'+(list.length===1?'':'s')+
+    (nm.length>1? ' \u00b7 also quoted as <b>'+esc(nm.slice(1).join(', '))+'</b>':'')+
+    ' \u00b7 '+(fin? 'a final quote is marked' : 'pick the one that stands \u2014 the rest get marked Discarded');
+
+  $('cBody').innerHTML=list.map(function(r){
+    var cls = r.status==='Final' ? ' final' : (r.status==='Discarded' ? ' disc' : '');
+    return '<div class="qrow'+cls+'">'+
+      '<div class="g">'+
+        '<div class="t">'+esc(r.model)+' <span class="dim">'+esc(r.variant)+'</span>'+
+          (r.status==='Final'?' <span class="badge b-final">FINAL</span>':'')+
+          (r.status==='Discarded'?' <span class="badge b-disc">discarded</span>':'')+'</div>'+
+        '<div class="s">'+fmtDT(dOf(r))+' \u00b7 '+esc(r._cn)+' \u00b7 '+esc(r.quoteNo)+'</div>'+
+      '</div>'+
+      '<div class="p">'+inr(r.netPayable)+'</div>'+
+      (r.shareUrl?'<a class="mini" href="'+esc(r.shareUrl)+'" target="_blank" rel="noopener">View</a>':'')+
+      '<button class="mini go" data-final="'+r.row+'"'+(r.status==='Final'?' disabled':'')+'>'+
+        (r.status==='Final'?'Final':'Keep this one')+'</button>'+
+    '</div>';
+  }).join('');
+}
+
+function setStatus(payload, done){
+  payload.action='setStatus'; payload.pw=PW;
+  fetch(API,{method:'POST',body:JSON.stringify(payload),headers:{'Content-Type':'text/plain;charset=utf-8'}})
+    .then(function(r){ return r.json(); })
+    .catch(function(){ return jsonp(API+'?action=setStatus&pw='+encodeURIComponent(PW)+
+        '&mode='+encodeURIComponent(payload.mode||'')+'&phone='+encodeURIComponent(payload.phone||'')+
+        '&row='+encodeURIComponent(payload.row||'')+'&status='+encodeURIComponent(payload.status||'')); })
+    .then(function(res){ done(res); })
+    .catch(function(){ done({ok:false}); });
+}
+
+function markFinal(row){
+  var btns=$('cBody').querySelectorAll('button'); [].forEach.call(btns,function(b){ b.disabled=true; });
+  setStatus({mode:'final', phone:CPHONE, row:Number(row)}, function(res){
+    if(res && res.ok){
+      ROWS.forEach(function(r){
+        if(r.custPhone===CPHONE) r.status = (Number(r.row)===Number(row)) ? 'Final' : 'Discarded';
+      });
+      renderCustomer(); render();
+    } else {
+      alert('Could not save. Check your connection and try again.');
+      renderCustomer();
+    }
+  });
+}
+function clearMarks(){
+  setStatus({mode:'clear', phone:CPHONE}, function(res){
+    if(res && res.ok){
+      ROWS.forEach(function(r){ if(r.custPhone===CPHONE) r.status=''; });
+      renderCustomer(); render();
+    }
+  });
 }
 
 /* ---------- controls ---------- */
@@ -704,12 +849,12 @@ function buildConsultants(){
 function exportCsv(){
   var rows=filtered();
   var cnt={}; ROWS.forEach(function(r){ if(r.custPhone) cnt[r.custPhone]=(cnt[r.custPhone]||0)+1; });
-  var head=['Timestamp','Quote No','Consultant (merged)','Consultant (as typed)','Consultant Phone','Customer','Phone','Model','Variant','Net On-Road','Net Payable','Quotes to this customer','Share Link'];
+  var head=['Timestamp','Quote No','Consultant (merged)','Consultant (as typed)','Consultant Phone','Customer','Phone','Model','Variant','Net On-Road','Net Payable','Quotes to this customer','Status','Share Link'];
   var lines=[head.join(',')];
   rows.forEach(function(r){
     var d=dOf(r);
     lines.push([d?d.toISOString():'', r.quoteNo, r._cn, r.consultant, r.conPhone, r.custName, r.custPhone,
-                r.model, r.variant, r.netOnRoad, r.netPayable, (r.custPhone?(cnt[r.custPhone]||1):1), r.shareUrl]
+                r.model, r.variant, r.netOnRoad, r.netPayable, (r.custPhone?(cnt[r.custPhone]||1):1), r.status||'', r.shareUrl]
       .map(function(v){ v=String(v==null?'':v); return '"'+v.replace(/"/g,'""')+'"'; }).join(','));
   });
   var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
@@ -737,6 +882,16 @@ function wire(){
   }
   $('q').addEventListener('input',function(){ onSearch(this.value,$('q2')); });
   $('q2').addEventListener('input',function(){ onSearch(this.value,$('q')); });
+  document.body.addEventListener('click',function(e){
+    var c=e.target.closest('[data-cust]');
+    if(c){ openCustomer(c.getAttribute('data-cust')); return; }
+    var b=e.target.closest('[data-final]');
+    if(b && !b.disabled){ markFinal(b.getAttribute('data-final')); }
+  });
+  $('cClose').addEventListener('click',closeCustomer);
+  $('cClear').addEventListener('click',clearMarks);
+  $('cbg').addEventListener('click',function(e){ if(e.target===$('cbg')) closeCustomer(); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeCustomer(); });
   $('refresh').addEventListener('click',refresh);
   $('out').addEventListener('click',signOut);
   $('csv').addEventListener('click',exportCsv);
