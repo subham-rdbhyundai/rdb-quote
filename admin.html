@@ -141,15 +141,15 @@ tr:last-child td{border-bottom:0}
 .b-ok{background:#eef7f2; color:var(--good); border:1px solid #cfe7db}
 
 /* ---------- repeat customers (signature) ---------- */
-.rep{border:1px solid var(--line); border-radius:var(--r-sm); padding:11px 12px; margin-bottom:8px;
-  background:#fff}
-.rep.conflict{border-color:#f0cfcf; background:linear-gradient(180deg,#fffafa,#fff)}
-.rep-h{display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:6px}
-.rep-h .who{font-weight:700; font-size:13.5px}
-.rep-h .ph{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
-.rep-h .spacer{flex:1}
-.rep-t{font-size:11.5px; color:var(--muted); line-height:1.6}
-.rep-t b{color:var(--ink); font-weight:600}
+.panel-head{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:11px}
+.panel-head h2{margin-bottom:2px}
+.panel-head .hint{margin-bottom:0}
+.panel-head input[type=search]{max-width:270px; padding:7px 10px; font-size:12.5px}
+tr.conflict td{background:#fff6f6}
+tr.conflict td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+.alias{font-size:10.5px; color:var(--muted2); font-weight:400}
+.kpi .k .q{display:inline-block; width:13px; height:13px; line-height:13px; text-align:center;
+  border:1px solid var(--line); border-radius:50%; color:var(--muted2); font-size:9px; cursor:help; margin-left:3px}
 
 .empty{padding:26px 10px; text-align:center; color:var(--muted2); font-size:13px}
 .foot{text-align:center; font-size:11px; color:var(--muted2); margin-top:22px}
@@ -220,9 +220,9 @@ a{color:var(--hy2)}
   </div>
 
   <div class="panel">
-    <h2>Repeat customers</h2>
-    <div class="hint">Same phone number quoted more than once — all-time, ignores the date filter. Red means more than one consultant quoted the same customer.</div>
-    <div id="reps"></div>
+    <h2>Customers quoted more than once</h2>
+    <div class="hint" id="repHint"></div>
+    <div class="scroll"><table id="tRep"></table></div>
   </div>
 
   <div class="panel">
@@ -232,8 +232,13 @@ a{color:var(--hy2)}
   </div>
 
   <div class="panel">
-    <h2>All quotes</h2>
-    <div class="hint" id="qHint"></div>
+    <div class="panel-head">
+      <div>
+        <h2>All quotes</h2>
+        <div class="hint" id="qHint"></div>
+      </div>
+      <input type="search" id="q2" placeholder="Search this list…">
+    </div>
     <div class="scroll"><table id="tAll"></table></div>
   </div>
 
@@ -250,6 +255,7 @@ a{color:var(--hy2)}
 var API = "https://script.google.com/macros/s/AKfycbzfvv6PVcyhLaMxM6iA3gHQ_ypdHcbOw80M88k0mspF-FzveVU1bAgEKyFpjTIW9EwELw/exec";
 
 var PW = null;        // kept in memory only, for this tab, until refresh
+var DIAG = null;      // what the sheet reported back, for troubleshooting
 var ROWS = [];        // every submission
 var RANGE = '30';     // default filter
 var CON = '';
@@ -282,6 +288,48 @@ function fmtDT(d){
   return d.toLocaleDateString('en-IN',o)+' · '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 }
 function fmtD(d){ return d ? d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
+
+/* ---------- consultant identity ----------
+   Consultants type their name freehand, so the same person appears many ways
+   ("Gopal", "Gopal ch. Midya", "Gopal Chandra Midya"...). Their PHONE is reliable,
+   so we group on that and show one full name per person.                        */
+var CMAP = {};   // key -> {name, aliases, phone, count}
+
+function normPhone(p){ return String(p==null?'':p).replace(/\D/g,'').slice(-10); }
+function normName(n){ return String(n==null?'':n).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+function conKey(r){
+  var ph=normPhone(r.conPhone);
+  if(ph.length===10) return 'p:'+ph;
+  var nn=normName(r.consultant);
+  return 'n:'+(nn||'unnamed');
+}
+function buildIdentities(){
+  CMAP={};
+  var g={};
+  ROWS.forEach(function(r){
+    var k=conKey(r);
+    if(!g[k]) g[k]={phone:normPhone(r.conPhone), names:{}, count:0};
+    var nm=String(r.consultant||'').trim() || '(not named)';
+    g[k].names[nm]=(g[k].names[nm]||0)+1;
+    g[k].count++;
+  });
+  Object.keys(g).forEach(function(k){
+    var o=g[k], names=Object.keys(o.names);
+    // fullest name wins: most words, then most used, then longest
+    names.sort(function(x,y){
+      var wx=x.split(/\s+/).length, wy=y.split(/\s+/).length;
+      if(wy!==wx) return wy-wx;
+      if(o.names[y]!==o.names[x]) return o.names[y]-o.names[x];
+      return y.length-x.length;
+    });
+    CMAP[k]={name:names[0], aliases:names, phone:o.phone, count:o.count};
+  });
+  ROWS.forEach(function(r){
+    var k=conKey(r);
+    r._ck=k;
+    r._cn=(CMAP[k]&&CMAP[k].name)||r.consultant||'(not named)';
+  });
+}
 
 /* ---------- data loading ---------- */
 function jsonp(url){
@@ -332,7 +380,7 @@ function login(){
       $('go').disabled=false; $('go').textContent='Open dashboard';
       return;
     }
-    PW=pw; ROWS=d.rows;
+    PW=pw; ROWS=d.rows; DIAG=d; buildIdentities();
     $('pw').value='';
     $('gate').style.display='none';
     $('app').style.display='block';
@@ -348,7 +396,7 @@ function refresh(){
   if(!PW) return;
   $('refresh').disabled=true; $('refresh').textContent='Refreshing…';
   fetchData(PW).then(function(d){
-    if(d && d.ok===true && Array.isArray(d.rows)){ ROWS=d.rows; stamp(d.generated); buildConsultants(); render(); }
+    if(d && d.ok===true && Array.isArray(d.rows)){ ROWS=d.rows; DIAG=d; buildIdentities(); stamp(d.generated); buildConsultants(); render(); }
     $('refresh').disabled=false; $('refresh').textContent='Refresh';
   }).catch(function(){
     $('refresh').disabled=false; $('refresh').textContent='Refresh';
@@ -384,9 +432,9 @@ function filtered(){
   return ROWS.filter(function(r){
     var d=dOf(r);
     if(from && (!d || d<from)) return false;
-    if(CON && r.consultant!==CON) return false;
+    if(CON && r._ck!==CON) return false;
     if(q){
-      var hay=(r.custName+' '+r.custPhone+' '+r.quoteNo+' '+r.model+' '+r.variant+' '+r.consultant).toLowerCase();
+      var hay=(r.custName+' '+r.custPhone+' '+r.quoteNo+' '+r.model+' '+r.variant+' '+r.consultant+' '+r._cn).toLowerCase();
       if(hay.indexOf(q)<0) return false;
     }
     return true;
@@ -418,15 +466,26 @@ function renderKpis(rows){
   var reps=repeatGroups();
   var conflicts=reps.filter(function(g){ return g.consultants.length>1; }).length;
 
+  var extra=rows.length-uniq;
   $('kpis').innerHTML=
-    kpi('Quotes in range', rows.length, rangeLabel()) +
-    kpi('Today', today, 'all consultants') +
-    kpi('This month', month, 'all consultants') +
-    kpi('Unique customers', uniq, rows.length? (rows.length-uniq)+' repeat in range':'—') +
-    kpi('Repeat customers', reps.length, conflicts? conflicts+' with 2+ consultants':'all-time', conflicts>0);
+    kpi('Quotes', rows.length, rangeLabel(),
+        'How many quotes were made in the date range you picked.') +
+    kpi('Today', today, 'across the dealership',
+        'Quotes made today by everyone. This ignores the date range above.') +
+    kpi('This month', month, 'across the dealership',
+        'Quotes made since the 1st of this month. This ignores the date range above.') +
+    kpi('Customers', uniq, (extra>0? extra+' were re-quotes':'one quote each'),
+        'Different phone numbers quoted in this range. '+rows.length+' quotes went to '+uniq+
+        ' customers, so '+extra+' quotes were repeats to someone already quoted.') +
+    kpi('Quoted twice or more', reps.length,
+        (conflicts? conflicts+' by 2+ consultants':'none by 2+ consultants'),
+        'Customers whose phone number appears on more than one quote, all-time. Of these, '+
+        conflicts+' were quoted by more than one consultant - those are the ones worth checking.',
+        conflicts>0);
 }
-function kpi(k,v,n,alert){
-  return '<div class="kpi'+(alert?' alert':'')+'"><div class="k">'+esc(k)+'</div>'+
+function kpi(k,v,n,help,alert){
+  return '<div class="kpi'+(alert?' alert':'')+'"><div class="k">'+esc(k)+
+         (help?'<span class="q" title="'+esc(help)+'">?</span>':'')+'</div>'+
          '<div class="v">'+(typeof v==='number'? v.toLocaleString('en-IN') : esc(v))+'</div>'+
          '<div class="n">'+esc(n)+'</div></div>';
 }
@@ -458,24 +517,30 @@ function renderTrend(rows){
 function renderConsultants(rows){
   var by={};
   rows.forEach(function(r){
-    var c=r.consultant||'(not named)';
+    var c=r._ck;
     if(!by[c]) by[c]={n:0,val:0,ph:{},last:null};
     by[c].n++; by[c].val+=Number(r.netPayable)||0;
-    if(r.custPhone) by[c].ph[r.custPhone]=1;
+    if(r.custPhone) by[c].ph[r.custPhone]=(by[c].ph[r.custPhone]||0)+1;
     var d=dOf(r); if(d && (!by[c].last || d>by[c].last)) by[c].last=d;
   });
   var list=Object.keys(by).map(function(c){
-    var o=by[c]; var u=Object.keys(o.ph).length;
-    return {c:c,n:o.n,val:o.val,uniq:u,dup:o.n-u,last:o.last};
+    var o=by[c], phones=Object.keys(o.ph);
+    var dupCust=phones.filter(function(p){ return o.ph[p]>1; }).length;
+    return {c:c, name:(CMAP[c]&&CMAP[c].name)||'(not named)',
+            aliases:(CMAP[c]?CMAP[c].aliases.length:1),
+            n:o.n, val:o.val, uniq:phones.length, dup:dupCust, last:o.last};
   }).sort(function(a,b){ return b.n-a.n; });
 
   if(!list.length){ $('tCon').innerHTML=''; $('tCon').parentNode.innerHTML='<div class="empty">No quotes in this range.</div>'; return; }
   var max=list[0].n;
   $('tCon').innerHTML=
-    '<thead><tr><th>Consultant</th><th>Quotes</th><th></th><th class="num">Customers</th>'+
-    '<th class="num">Repeats</th><th class="num">Value</th><th>Last quote</th></tr></thead><tbody>'+
+    '<thead><tr><th>Consultant</th><th>Quotes</th><th></th>'+
+    '<th class="num" title="Different customers this consultant quoted">Customers</th>'+
+    '<th class="num" title="Customers this consultant quoted more than once">Re-quoted</th>'+
+    '<th class="num">Value</th><th>Last quote</th></tr></thead><tbody>'+
     list.map(function(x){
-      return '<tr><td class="nm">'+esc(x.c)+'</td>'+
+      return '<tr><td class="nm">'+esc(x.name)+
+          (x.aliases>1? ' <span class="alias" title="Typed as: '+esc(CMAP[x.c].aliases.join(', '))+'">'+x.aliases+' spellings</span>':'')+'</td>'+
         '<td class="num"><b>'+x.n+'</b></td>'+
         '<td style="width:90px"><div class="bar"><i style="width:'+Math.round(x.n/max*100)+'%"></i></div></td>'+
         '<td class="num">'+x.uniq+'</td>'+
@@ -521,20 +586,22 @@ function repeatGroups(){
   var by={};
   ROWS.forEach(function(r){
     if(!r.custPhone) return;
-    if(!by[r.custPhone]) by[r.custPhone]={phone:r.custPhone,names:{},consultants:{},models:{},rows:[]};
+    if(!by[r.custPhone]) by[r.custPhone]={phone:r.custPhone,names:{},ckeys:{},models:{},rows:[]};
     var g=by[r.custPhone];
     if(r.custName) g.names[r.custName]=1;
-    if(r.consultant) g.consultants[r.consultant]=1;
+    g.ckeys[r._ck]=1;
     if(r.model) g.models[r.model]=1;
     g.rows.push(r);
   });
   return Object.keys(by).map(function(p){
     var g=by[p];
     var ds=g.rows.map(dOf).filter(Boolean).sort(function(a,b){ return a-b; });
+    var keys=Object.keys(g.ckeys);
     return {
       phone:g.phone,
       names:Object.keys(g.names),
-      consultants:Object.keys(g.consultants),
+      ckeys:keys,
+      consultants:keys.map(function(k){ return (CMAP[k]&&CMAP[k].name)||'(not named)'; }),
       models:Object.keys(g.models),
       count:g.rows.length,
       first:ds[0]||null,
@@ -543,7 +610,7 @@ function repeatGroups(){
     };
   }).filter(function(g){ return g.count>1; })
     .sort(function(a,b){
-      var ca=a.consultants.length>1?1:0, cb=b.consultants.length>1?1:0;
+      var ca=a.ckeys.length>1?1:0, cb=b.ckeys.length>1?1:0;
       if(ca!==cb) return cb-ca;                 // conflicts first
       if(b.count!==a.count) return b.count-a.count;
       return (b.last||0)-(a.last||0);
@@ -552,41 +619,69 @@ function repeatGroups(){
 
 function renderRepeats(){
   var groups=repeatGroups();
-  if(!groups.length){ $('reps').innerHTML='<div class="empty">No repeat customers yet — every phone number appears once.</div>'; return; }
-  $('reps').innerHTML=groups.map(function(g){
-    var conflict=g.consultants.length>1;
-    return '<div class="rep'+(conflict?' conflict':'')+'">'+
-      '<div class="rep-h">'+
-        '<span class="who">'+esc(g.names[0]||'(no name)')+'</span>'+
-        '<span class="ph">'+esc(g.phone)+'</span>'+
-        '<span class="spacer"></span>'+
-        '<span class="badge '+(conflict?'b-bad':'b-warn')+'">'+g.count+' quotes</span>'+
-        (conflict?'<span class="badge b-bad">'+g.consultants.length+' consultants</span>':'')+
-      '</div>'+
-      '<div class="rep-t">'+
-        'Consultant'+(g.consultants.length>1?'s':'')+': <b>'+esc(g.consultants.join(', ')||'—')+'</b><br>'+
-        'Model'+(g.models.length>1?'s':'')+': <b>'+esc(g.models.join(', ')||'—')+'</b> · '+
-        'First <b>'+fmtD(g.first)+'</b> · Latest <b>'+fmtD(g.last)+'</b>'+
-        (g.names.length>1?'<br>Also quoted as: <b>'+esc(g.names.slice(1).join(', '))+'</b>':'')+
-      '</div></div>';
-  }).join('');
+  if(CON) groups=groups.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+
+  var who = CON ? ((CMAP[CON]&&CMAP[CON].name)||'this consultant') : null;
+  var conflicts=groups.filter(function(g){ return g.ckeys.length>1; }).length;
+  $('repHint').innerHTML = (who
+      ? 'Customers <b>'+esc(who)+'</b> quoted more than once. '
+      : 'Any customer phone number appearing on more than one quote. ')+
+    'All-time \u2014 the date filter above does not apply here. '+
+    (groups.length? '<b>'+groups.length+'</b> found'+(conflicts? ', <b>'+conflicts+'</b> involving more than one consultant (shown in red at the top).':'.') : '');
+
+  if(!groups.length){
+    $('tRep').innerHTML='<tbody><tr><td class="empty">'+(who? 'No repeat customers for '+esc(who)+'.' : 'No repeat customers \u2014 every phone number appears once.')+'</td></tr></tbody>';
+    return;
+  }
+  $('tRep').innerHTML=
+    '<thead><tr><th>Customer</th><th>Phone</th><th class="num">Quotes</th>'+
+    '<th>Quoted by</th><th>Models</th><th>First</th><th>Latest</th></tr></thead><tbody>'+
+    groups.map(function(g){
+      var conflict=g.ckeys.length>1;
+      return '<tr'+(conflict?' class="conflict"':'')+'>'+
+        '<td class="nm">'+esc(g.names[0]||'(no name)')+
+          (g.names.length>1?'<br><span class="alias" title="'+esc(g.names.slice(1).join(', '))+'">also: '+esc(g.names.slice(1).join(', ').slice(0,40))+'</span>':'')+'</td>'+
+        '<td class="num">'+esc(g.phone)+'</td>'+
+        '<td class="num"><b>'+g.count+'</b></td>'+
+        '<td>'+esc(g.consultants.join(', '))+
+          (conflict?' <span class="badge b-bad">'+g.ckeys.length+'</span>':'')+'</td>'+
+        '<td class="dim">'+esc(g.models.join(', '))+'</td>'+
+        '<td class="dim">'+fmtD(g.first)+'</td>'+
+        '<td class="dim">'+fmtD(g.last)+'</td></tr>';
+    }).join('')+'</tbody>';
 }
 
 function renderAll(rows){
   var list=rows.slice().sort(function(a,b){ return (dOf(b)||0)-(dOf(a)||0); });
-  $('qHint').textContent=list.length+' quote'+(list.length===1?'':'s')+' shown · newest first';
-  if(!list.length){ $('tAll').innerHTML='<tbody><tr><td class="empty">No quotes match these filters.</td></tr></tbody>'; return; }
+  $('qHint').innerHTML=list.length+' quote'+(list.length===1?'':'s')+' shown \u00b7 newest first \u00b7 '+
+    '<b>repeat \u00d7N</b> means this customer\u2019s phone appears on N quotes in total';
+  if(!list.length){
+    var msg;
+    if(!ROWS.length){
+      msg='<b>The sheet returned 0 quotes.</b><br><br>';
+      if(DIAG){
+        if(DIAG.note) msg+=esc(DIAG.note)+'<br><br>';
+        if(DIAG.spreadsheet) msg+='Spreadsheet: <b>'+esc(DIAG.spreadsheet)+'</b><br>';
+        if(DIAG.tabs) msg+='Tabs found: <b>'+esc(DIAG.tabs.join(', '))+'</b><br>';
+        if(DIAG.headers&&DIAG.headers.length) msg+='Submissions headers: <b>'+esc(DIAG.headers.join(' | '))+'</b>';
+      }
+    } else {
+      msg='No quotes match these filters. Try <b>All time</b>.';
+    }
+    $('tAll').innerHTML='<tbody><tr><td class="empty" style="text-align:left;line-height:1.7">'+msg+'</td></tr></tbody>';
+    return;
+  }
   var seen={}; ROWS.forEach(function(r){ if(r.custPhone) seen[r.custPhone]=(seen[r.custPhone]||0)+1; });
-  $('tAll').innerHTML='<thead><tr><th>When</th><th>Quote no</th><th>Customer</th><th>Phone</th>'+
-    '<th>Model / variant</th><th>Consultant</th><th class="num">Net payable</th><th>Link</th></tr></thead><tbody>'+
+  $('tAll').innerHTML='<thead><tr><th>When</th><th>Customer</th><th>Phone</th>'+
+    '<th>Model / variant</th><th>Consultant</th><th class="num">Net payable</th><th></th></tr></thead><tbody>'+
     list.map(function(r){
-      var rep=r.custPhone && seen[r.custPhone]>1;
-      return '<tr><td class="dim">'+fmtDT(dOf(r))+'</td>'+
-        '<td class="dim">'+esc(r.quoteNo)+'</td>'+
-        '<td class="nm">'+esc(r.custName||'—')+(rep?' <span class="badge b-warn">repeat</span>':'')+'</td>'+
-        '<td class="num">'+esc(r.custPhone||'—')+'</td>'+
+      var nrep=r.custPhone? (seen[r.custPhone]||0) : 0;
+      return '<tr><td class="dim">'+fmtDT(dOf(r))+'<br><span class="alias">'+esc(r.quoteNo)+'</span></td>'+
+        '<td class="nm">'+esc(r.custName||'\u2014')+
+          (nrep>1?' <span class="badge b-warn" title="This phone number appears on '+nrep+' quotes in total">repeat \u00d7'+nrep+'</span>':'')+'</td>'+
+        '<td class="num">'+esc(r.custPhone||'\u2014')+'</td>'+
         '<td>'+esc(r.model)+' <span class="dim">'+esc(r.variant)+'</span></td>'+
-        '<td>'+esc(r.consultant||'—')+'</td>'+
+        '<td>'+esc(r._cn||'\u2014')+'</td>'+
         '<td class="num">'+inr(r.netPayable)+'</td>'+
         '<td>'+(r.shareUrl?'<a href="'+esc(r.shareUrl)+'" target="_blank" rel="noopener">open</a>':'<span class="dim">—</span>')+'</td></tr>';
     }).join('')+'</tbody>';
@@ -599,21 +694,22 @@ function buildRanges(){
   }).join('');
 }
 function buildConsultants(){
-  var names={}; ROWS.forEach(function(r){ if(r.consultant) names[r.consultant]=1; });
-  var list=Object.keys(names).sort();
+  var list=Object.keys(CMAP).map(function(k){ return {k:k, n:CMAP[k].name}; })
+    .sort(function(x,y){ return x.n.localeCompare(y.n); });
   var sel=$('fcon'), cur=sel.value;
   sel.innerHTML='<option value="">All consultants</option>'+
-    list.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join('');
-  if(list.indexOf(cur)>-1) sel.value=cur;
+    list.map(function(o){ return '<option value="'+esc(o.k)+'">'+esc(o.n)+'</option>'; }).join('');
+  if(CMAP[cur]) sel.value=cur; else { sel.value=''; CON=''; }
 }
 function exportCsv(){
   var rows=filtered();
-  var head=['Timestamp','Quote No','Consultant','Consultant Phone','Customer','Phone','Model','Variant','Net On-Road','Net Payable','Share Link'];
+  var cnt={}; ROWS.forEach(function(r){ if(r.custPhone) cnt[r.custPhone]=(cnt[r.custPhone]||0)+1; });
+  var head=['Timestamp','Quote No','Consultant (merged)','Consultant (as typed)','Consultant Phone','Customer','Phone','Model','Variant','Net On-Road','Net Payable','Quotes to this customer','Share Link'];
   var lines=[head.join(',')];
   rows.forEach(function(r){
     var d=dOf(r);
-    lines.push([d?d.toISOString():'', r.quoteNo, r.consultant, r.conPhone, r.custName, r.custPhone,
-                r.model, r.variant, r.netOnRoad, r.netPayable, r.shareUrl]
+    lines.push([d?d.toISOString():'', r.quoteNo, r._cn, r.consultant, r.conPhone, r.custName, r.custPhone,
+                r.model, r.variant, r.netOnRoad, r.netPayable, (r.custPhone?(cnt[r.custPhone]||1):1), r.shareUrl]
       .map(function(v){ v=String(v==null?'':v); return '"'+v.replace(/"/g,'""')+'"'; }).join(','));
   });
   var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
@@ -635,9 +731,12 @@ function wire(){
   });
   $('fcon').addEventListener('change',function(){ CON=this.value; render(); });
   var t=null;
-  $('q').addEventListener('input',function(){
-    var v=this.value; clearTimeout(t); t=setTimeout(function(){ QRY=v; render(); },180);
-  });
+  function onSearch(v,other){
+    clearTimeout(t);
+    t=setTimeout(function(){ QRY=v; if(other && other.value!==v) other.value=v; render(); },180);
+  }
+  $('q').addEventListener('input',function(){ onSearch(this.value,$('q2')); });
+  $('q2').addEventListener('input',function(){ onSearch(this.value,$('q')); });
   $('refresh').addEventListener('click',refresh);
   $('out').addEventListener('click',signOut);
   $('csv').addEventListener('click',exportCsv);
