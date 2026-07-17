@@ -193,6 +193,9 @@ body.readonly .cmp-switch{display:none}
 .ro-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .ro-drive{background:rgba(255,255,255,.14);color:#fff;border:1.5px solid rgba(255,255,255,.65);text-decoration:none;display:inline-flex;align-items:center;gap:6px}
 body.readonly .builder-only{display:none !important}
+.admin-foot{max-width:1180px;margin:30px auto 14px;padding:0 18px;text-align:center;border-top:1px solid var(--line2);padding-top:14px}
+.admin-foot a{font-size:11px;color:var(--muted2);text-decoration:none;letter-spacing:.05em;opacity:.7;padding:6px 10px;border-radius:8px}
+.admin-foot a:hover,.admin-foot a:focus-visible{color:var(--hy);opacity:1;background:var(--line2)}
 body.readonly .grid{grid-template-columns:1fr}
 body.readonly .ro-banner{display:flex}
 /* modal + toast */
@@ -376,6 +379,10 @@ body.readonly .ro-banner{display:flex}
       </div>
     </section>
   </div>
+</div>
+
+<div class="admin-foot builder-only no-print">
+  <a href="admin.html" rel="noopener">Admin dashboard</a>
 </div>
 
 <div class="modal-bg" id="modalBg">
