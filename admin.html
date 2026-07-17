@@ -148,8 +148,10 @@ tr:last-child td{border-bottom:0}
 tr.conflict td{background:#fff6f6}
 tr.conflict td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
 .alias{font-size:10.5px; color:var(--muted2); font-weight:400}
-.kpi .k .q{display:inline-block; width:13px; height:13px; line-height:13px; text-align:center;
-  border:1px solid var(--line); border-radius:50%; color:var(--muted2); font-size:9px; cursor:help; margin-left:3px}
+.kpi .k .q{display:inline-block; width:14px; height:14px; line-height:12px; text-align:center; padding:0;
+  border:1px solid var(--line); border-radius:50%; color:var(--muted2); font-size:9px; cursor:pointer;
+  margin-left:4px; background:#fff; font-family:var(--body); vertical-align:middle}
+.kpi .k .q:hover{border-color:var(--acc); color:var(--acc)}
 
 .empty{padding:26px 10px; text-align:center; color:var(--muted2); font-size:13px}
 .lnk{color:var(--hy2); cursor:pointer; text-decoration:underline; text-underline-offset:2px}
@@ -247,8 +249,14 @@ a{color:var(--hy2)}
     </div>
   </div>
 
-  <div class="panel">
-    <h2>Customers quoted more than once</h2>
+  <div class="panel" id="clashPanel" style="display:none">
+    <h2>Quoted by more than one consultant</h2>
+    <div class="hint" id="clashHint"></div>
+    <div class="scroll"><table id="tClash"></table></div>
+  </div>
+
+  <div class="panel" id="repPanel">
+    <h2>Quoted more than once by the same consultant</h2>
     <div class="hint" id="repHint"></div>
     <div class="scroll"><table id="tRep"></table></div>
   </div>
@@ -277,6 +285,14 @@ a{color:var(--hy2)}
   </div>
 
   <div class="foot">RDB Hyundai · RD Motors Pvt Ltd — internal use only</div>
+</div>
+
+<div class="mbg" id="hbg">
+  <div class="mdl" style="max-width:460px">
+    <div class="mdl-h"><h3 id="hTitle"></h3></div>
+    <div class="mdl-b"><p id="hBody" style="font-size:13.5px;line-height:1.65;margin:8px 0;color:var(--ink)"></p></div>
+    <div class="mdl-f"><button class="mini go" id="hClose">Got it</button></div>
+  </div>
 </div>
 
 <div class="mbg" id="cbg">
@@ -512,6 +528,7 @@ function render(){
   renderConsultants(rows);
   renderModels(rows);
   renderVariants(rows);
+  renderClash();
   renderRepeats();
   renderDup();
   renderAll(rows);
@@ -549,7 +566,7 @@ function renderKpis(rows){
 }
 function kpi(k,v,n,help,alert){
   return '<div class="kpi'+(alert?' alert':'')+'"><div class="k">'+esc(k)+
-         (help?'<span class="q" title="'+esc(help)+'">?</span>':'')+'</div>'+
+         (help?'<button class="q" data-help="'+esc(help)+'" data-help-t="'+esc(k)+'">?</button>':'')+'</div>'+
          '<div class="v">'+(typeof v==='number'? v.toLocaleString('en-IN') : esc(v))+'</div>'+
          '<div class="n">'+esc(n)+'</div></div>';
 }
@@ -689,19 +706,17 @@ function repeatGroups(){
 }
 
 function renderRepeats(){
-  var groups=repeatGroups();
+  var groups=repeatGroups().filter(function(g){ return g.ckeys.length===1; });   // clashes live in their own panel
   if(CON) groups=groups.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
 
   var who = CON ? ((CMAP[CON]&&CMAP[CON].name)||'this consultant') : null;
-  var conflicts=groups.filter(function(g){ return g.ckeys.length>1; }).length;
   $('repHint').innerHTML = (who
-      ? 'Customers <b>'+esc(who)+'</b> quoted more than once. '
-      : 'Any customer phone number appearing on more than one quote. ')+
-    'All-time \u2014 the date filter above does not apply here. '+
-    (groups.length? '<b>'+groups.length+'</b> found'+(conflicts? ', <b>'+conflicts+'</b> involving more than one consultant (shown in red at the top).':'.') : '');
-
+      ? 'Customers <b>'+esc(who)+'</b> quoted more than once, where nobody else quoted them too. '
+      : 'One consultant quoted the same phone number more than once \u2014 nobody else was involved. ')+
+    'All-time, the date filter does not apply. '+
+    (groups.length? '<b>'+groups.length+'</b> found. Click a name to pick the final quote.':'');
   if(!groups.length){
-    $('tRep').innerHTML='<tbody><tr><td class="empty">'+(who? 'No repeat customers for '+esc(who)+'.' : 'No repeat customers \u2014 every phone number appears once.')+'</td></tr></tbody>';
+    $('tRep').innerHTML='<tbody><tr><td class="empty">'+(who? 'Nothing here for '+esc(who)+'.' : 'Nothing here.')+'</td></tr></tbody>';
     return;
   }
   $('tRep').innerHTML=
@@ -753,17 +768,72 @@ function sameNameGroups(){
     .sort(function(x,y){ return (y.phones.length-x.phones.length) || (y.total-x.total); });
 }
 
+/* THE tracker: one customer, two or more different consultants.
+   Two ways of spotting it, kept apart because they differ in certainty:
+     - same phone number   -> definitely the same customer
+     - same name, different numbers -> probably, but worth a look          */
+function clashGroups(){
+  var out=[];
+  repeatGroups().forEach(function(g){
+    if(g.ckeys.length>1) out.push({
+      how:'Same number', sure:true, name:g.names[0]||'(no name)', alt:g.names.slice(1),
+      phones:[g.phone], ckeys:g.ckeys, consultants:g.consultants,
+      models:g.models, total:g.count, first:g.first, last:g.last
+    });
+  });
+  sameNameGroups().forEach(function(g){
+    if(g.ckeys.length>1) out.push({
+      how:'Same name only', sure:false, name:g.name, alt:[],
+      phones:g.phones, ckeys:g.ckeys, consultants:g.consultants,
+      models:g.models, total:g.total, first:null, last:g.last
+    });
+  });
+  return out.sort(function(x,y){
+    if(x.sure!==y.sure) return x.sure?-1:1;
+    if(y.ckeys.length!==x.ckeys.length) return y.ckeys.length-x.ckeys.length;
+    return (y.last||0)-(x.last||0);
+  });
+}
+
+function renderClash(){
+  var groups=clashGroups();
+  if(CON) groups=groups.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
+  if(!groups.length){ $('clashPanel').style.display='none'; return; }
+  $('clashPanel').style.display='';
+  var who=CON?((CMAP[CON]&&CMAP[CON].name)||''):'';
+  var sure=groups.filter(function(g){ return g.sure; }).length;
+  $('clashHint').innerHTML='The same customer received quotes from two or more different consultants'+
+    (who? ', involving <b>'+esc(who)+'</b>':'')+'. All-time. '+
+    '<b>'+sure+'</b> matched on phone number (certain)'+
+    (groups.length-sure? ', <b>'+(groups.length-sure)+'</b> on name only (worth checking \u2014 two buyers can share a name).':'.')+
+    ' Click a name or number to see every quote and pick the final one.';
+  $('tClash').innerHTML=
+    '<thead><tr><th>Customer</th><th>Phone</th><th class="num">Consultants</th><th>Who</th>'+
+    '<th class="num">Quotes</th><th>Models</th><th>Latest</th><th>Matched on</th></tr></thead><tbody>'+
+    groups.map(function(g){
+      return '<tr'+(g.sure?' class="conflict"':'')+'>'+
+        '<td class="nm">'+esc(g.name)+
+          (g.alt.length?'<br><span class="alias">also: '+esc(g.alt.join(', ').slice(0,36))+'</span>':'')+'</td>'+
+        '<td>'+g.phones.map(function(p){ return '<span class="lnk" data-cust="'+esc(p)+'">'+esc(p)+'</span>'; }).join('<br>')+'</td>'+
+        '<td class="num"><span class="badge '+(g.sure?'b-bad':'b-warn')+'">'+g.ckeys.length+'</span></td>'+
+        '<td>'+esc(g.consultants.join(', '))+'</td>'+
+        '<td class="num"><b>'+g.total+'</b></td>'+
+        '<td class="dim">'+esc(g.models.join(', '))+'</td>'+
+        '<td class="dim">'+fmtD(g.last)+'</td>'+
+        '<td class="dim">'+esc(g.how)+'</td></tr>';
+    }).join('')+'</tbody>';
+}
+
 function renderDup(){
-  var groups=sameNameGroups();
+  var groups=sameNameGroups().filter(function(g){ return g.ckeys.length===1; });  // 2+ consultants -> tracker above
   if(CON) groups=groups.filter(function(g){ return g.ckeys.indexOf(CON)>-1; });
   if(!groups.length){ $('dupPanel').style.display='none'; return; }
   $('dupPanel').style.display='';
   var who = CON ? ((CMAP[CON]&&CMAP[CON].name)||'') : '';
-  $('dupHint').innerHTML='The same customer name on more than one phone number'+
-    (who? ', involving <b>'+esc(who)+'</b>':'')+
+  $('dupHint').innerHTML='The same customer name on more than one phone number, all with the same consultant'+
+    (who? ' (<b>'+esc(who)+'</b>)':'')+
     ' \u2014 possibly one customer entered twice, possibly two different people. '+
-    '<b>Nothing is merged</b> and no count changes; this is only for you to check. '+
-    '<b>'+groups.length+'</b> to look at.';
+    '<b>Nothing is merged</b> and no count changes. <b>'+groups.length+'</b> to look at.';
   $('tDup').innerHTML=
     '<thead><tr><th>Name</th><th>Phone numbers</th><th class="num">Quotes</th>'+
     '<th>Quoted by</th><th>Models</th><th>Latest</th></tr></thead><tbody>'+
@@ -947,15 +1017,21 @@ function wire(){
   $('q').addEventListener('input',function(){ onSearch(this.value,$('q2')); });
   $('q2').addEventListener('input',function(){ onSearch(this.value,$('q')); });
   document.body.addEventListener('click',function(e){
+    var h=e.target.closest('[data-help]');
+    if(h){ $('hTitle').textContent=h.getAttribute('data-help-t')||'What this means';
+           $('hBody').textContent=h.getAttribute('data-help');
+           $('hbg').classList.add('show'); return; }
     var c=e.target.closest('[data-cust]');
     if(c){ openCustomer(c.getAttribute('data-cust')); return; }
     var b=e.target.closest('[data-final]');
     if(b && !b.disabled){ markFinal(b.getAttribute('data-final')); }
   });
+  $('hClose').addEventListener('click',function(){ $('hbg').classList.remove('show'); });
+  $('hbg').addEventListener('click',function(e){ if(e.target===$('hbg')) $('hbg').classList.remove('show'); });
   $('cClose').addEventListener('click',closeCustomer);
   $('cClear').addEventListener('click',clearMarks);
   $('cbg').addEventListener('click',function(e){ if(e.target===$('cbg')) closeCustomer(); });
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeCustomer(); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeCustomer(); $('hbg').classList.remove('show'); } });
   $('refresh').addEventListener('click',refresh);
   $('out').addEventListener('click',signOut);
   $('csv').addEventListener('click',exportCsv);
