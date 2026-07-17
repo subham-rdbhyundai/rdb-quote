@@ -199,8 +199,20 @@ th .ar{margin-left:3px; font-size:8px}
   font-size:11.5px; font-weight:600; color:var(--hy)}
 .mini:hover{border-color:var(--acc); color:var(--acc)}
 .mini.go{background:var(--hy); border-color:var(--hy); color:#fff}
+.mini.del{color:var(--muted2)}
+.mini.del:hover{border-color:var(--bad); color:var(--bad)}
+.mini.danger{background:var(--bad); border-color:var(--bad); color:#fff}
+.mini.danger:hover{filter:brightness(1.1); color:#fff}
+.confirm{display:flex; align-items:center; gap:7px; flex-wrap:wrap; width:100%;
+  background:#fdeeee; border:1px solid #f2cfcf; border-radius:var(--r-sm); padding:8px 10px; margin-top:8px}
+.confirm .msg{flex:1; font-size:12px; color:var(--bad); font-weight:600; min-width:180px}
 .mini.go:hover{filter:brightness(1.12); color:#fff}
 .mini:disabled{opacity:.45; cursor:not-allowed}
+.mini.danger{color:var(--bad); border-color:#f0cfcf}
+.mini.danger:hover{background:#fdeeee; border-color:var(--bad)}
+.mini.arm{background:var(--bad); border-color:var(--bad); color:#fff}
+.mini.arm:hover{background:var(--bad); color:#fff; filter:brightness(1.1)}
+.qrow.gone{opacity:.55; background:#fbfbfc; border-style:dashed}
 .b-final{background:#eef7f2; color:var(--good); border:1px solid #cfe7db}
 .b-disc{background:#f1f4f7; color:var(--muted2); border:1px solid var(--line)}
 .foot{text-align:center; font-size:11px; color:var(--muted2); margin-top:22px}
@@ -309,7 +321,10 @@ a{color:var(--hy2)}
         <h2>All quotes</h2>
         <div class="hint" id="qHint"></div>
       </div>
-      <input type="search" id="q2" placeholder="Search this list…">
+      <div style="display:flex; gap:8px; align-items:center">
+        <button class="tbtn" id="delToggle" style="display:none"></button>
+        <input type="search" id="q2" placeholder="Search this list…">
+      </div>
     </div>
     <div class="scroll"><table id="tAll"></table></div>
   </div>
@@ -352,12 +367,16 @@ var PW = null;        // kept in memory only, for this tab, until refresh
 var DIAG = null;      // what the sheet reported back, for troubleshooting
 var ROWS = [];        // every submission
 var RANGE = '30';     // default filter
+var LIVE = [];        // every quote except the deleted ones
+var SHOWDEL = false;  // peek at deleted ones so they can be put back
 var CONS = [];        // chosen consultants; empty = everyone
 var QRY = '';
 var CQ = '', RQ = '', DQ = '';   // one search per list
 
 /* these lists are all-time, so the search at the top doesn't reach them */
 function custKey(r){ return r.custPhone ? ('p:'+r.custPhone) : ('q:'+r.quoteNo+'|'+r.ts); }
+function isDel(r){ return String(r.status||'')==='Deleted'; }
+function rebuildLive(){ LIVE=ROWS.filter(function(r){ return !isDel(r); }); }
 var CSORT={k:'n',dir:-1};
 
 function groupHit(g,q){
@@ -582,7 +601,7 @@ function login(){
       $('go').disabled=false; $('go').textContent='Open dashboard';
       return;
     }
-    PW=pw; ROWS=d.rows; DIAG=d; buildIdentities();
+    PW=pw; ROWS=d.rows; DIAG=d; buildIdentities(); rebuildLive();
     $('pw').value='';
     $('gate').style.display='none';
     $('app').style.display='block';
@@ -598,7 +617,7 @@ function refresh(){
   if(!PW) return;
   $('refresh').disabled=true; $('refresh').textContent='Refreshing…';
   fetchData(PW).then(function(d){
-    if(d && d.ok===true && Array.isArray(d.rows)){ ROWS=d.rows; DIAG=d; buildIdentities(); stamp(d.generated); buildConsultants(); render(); }
+    if(d && d.ok===true && Array.isArray(d.rows)){ ROWS=d.rows; DIAG=d; buildIdentities(); rebuildLive(); stamp(d.generated); buildConsultants(); render(); }
     $('refresh').disabled=false; $('refresh').textContent='Refresh';
   }).catch(function(){
     $('refresh').disabled=false; $('refresh').textContent='Refresh';
@@ -607,7 +626,8 @@ function refresh(){
 
 function stamp(g){
   var d=g?new Date(g):new Date();
-  $('stamp').textContent=ROWS.length+' quotes · updated '+fmtDT(d);
+  var del=ROWS.length-LIVE.length;
+  $('stamp').textContent=LIVE.length+' quotes'+(del?' · '+del+' deleted':'')+' · updated '+fmtDT(d);
 }
 
 function signOut(){
@@ -629,9 +649,9 @@ function rangeStart(){
   }
   return null; // all
 }
-function filtered(){
+function filteredFrom(base){
   var from=rangeStart(), q=QRY.trim().toLowerCase();
-  return ROWS.filter(function(r){
+  return base.filter(function(r){
     var d=dOf(r);
     if(from && (!d || d<from)) return false;
     if(CONS.length && CONS.indexOf(r._ck)<0) return false;
@@ -642,8 +662,20 @@ function filtered(){
     return true;
   });
 }
+function filtered(){ return filteredFrom(LIVE); }                       // every count ignores deleted
+function filteredForList(){ return filteredFrom(SHOWDEL?ROWS:LIVE); }   // the table may show them
 
 /* ---------- render ---------- */
+function syncDelToggle(){
+  var n=ROWS.length-LIVE.length, b=$('delToggle');
+  if(!b) return;
+  if(!n){ b.style.display='none'; SHOWDEL=false; return; }
+  b.style.display='';
+  b.textContent = SHOWDEL ? ('Hide deleted ('+n+')') : ('Show deleted ('+n+')');
+}
+function doDelete(row,qn,btn){ markDeleted(row,qn,true,btn); }
+function doRestore(row,qn,btn){ markDeleted(row,qn,false,btn); }
+
 function render(){
   var rows=filtered();
   renderKpis(rows);
@@ -654,7 +686,8 @@ function render(){
   renderClash();
   renderRepeats();
   renderDup();
-  renderAll(rows);
+  renderAll(filteredForList());
+  syncDelToggle();
 }
 
 function renderKpis(rows){
@@ -662,7 +695,7 @@ function renderKpis(rows){
   var t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   var m0=new Date(now.getFullYear(),now.getMonth(),1);
   var today=0, month=0;
-  ROWS.forEach(function(r){ var d=dOf(r); if(!d) return; if(d>=t0) today++; if(d>=m0) month++; });
+  LIVE.forEach(function(r){ var d=dOf(r); if(!d) return; if(d>=t0) today++; if(d>=m0) month++; });
 
   var phones={}; rows.forEach(function(r){ if(r.custPhone) phones[r.custPhone]=1; });
   var uniq=Object.keys(phones).length;
@@ -851,7 +884,7 @@ function renderVariants(rows){
 /* --- repeat customers: all-time, by phone --- */
 function repeatGroups(){
   var by={};
-  ROWS.forEach(function(r){
+  LIVE.forEach(function(r){
     if(!r.custPhone) return;
     if(!by[r.custPhone]) by[r.custPhone]={phone:r.custPhone,names:{},ckeys:{},models:{},rows:[]};
     var g=by[r.custPhone];
@@ -925,7 +958,7 @@ function renderRepeats(){
    different buyers really can share a name, so this stays a suggestion. */
 function sameNameGroups(){
   var by={};
-  ROWS.forEach(function(r){
+  LIVE.forEach(function(r){
     var n=normName(r.custName);
     if(!n || n.length<3 || !r.custPhone) return;
     if(!by[n]) by[n]={disp:{}, phones:{}, ckeys:{}, models:{}, rows:[]};
@@ -1059,7 +1092,7 @@ function renderAll(rows){
     $('tAll').innerHTML='<tbody><tr><td class="empty" style="text-align:left;line-height:1.7">'+msg+'</td></tr></tbody>';
     return;
   }
-  var seen={}; ROWS.forEach(function(r){ if(r.custPhone) seen[r.custPhone]=(seen[r.custPhone]||0)+1; });
+  var seen={}; LIVE.forEach(function(r){ if(r.custPhone) seen[r.custPhone]=(seen[r.custPhone]||0)+1; });
   $('tAll').innerHTML='<thead><tr><th>When</th><th>Customer</th><th>Phone</th>'+
     '<th>Model / variant</th><th>Consultant</th><th class="num">Net payable</th><th></th></tr></thead><tbody>'+
     list.map(function(r){
@@ -1068,7 +1101,8 @@ function renderAll(rows){
         '<td class="nm">'+(r.custPhone?'<span class="lnk" data-cust="'+esc(r.custPhone)+'">'+esc(r.custName||'(no name)')+'</span>':esc(r.custName||'\u2014'))+
           (nrep>1?' <span class="badge b-warn" title="This phone number appears on '+nrep+' quotes in total. Click the name to pick the final one.">repeat \u00d7'+nrep+'</span>':'')+
           (r.status==='Final'?' <span class="badge b-final">FINAL</span>':'')+
-          (r.status==='Discarded'?' <span class="badge b-disc">discarded</span>':'')+'</td>'+
+          (r.status==='Discarded'?' <span class="badge b-disc">discarded</span>':'')+
+          (r.status==='Deleted'?' <span class="badge b-bad">deleted</span>':'')+'</td>'+
         '<td class="num">'+esc(r.custPhone||'\u2014')+'</td>'+
         '<td>'+esc(r.model)+' <span class="dim">'+esc(r.variant)+'</span></td>'+
         '<td>'+esc(r._cn||'\u2014')+'</td>'+
@@ -1105,18 +1139,23 @@ function renderCustomer(){
     ' \u00b7 '+(fin? 'a final quote is marked' : 'pick the one that stands \u2014 the rest get marked Discarded');
 
   $('cBody').innerHTML=list.map(function(r){
-    var cls = r.status==='Final' ? ' final' : (r.status==='Discarded' ? ' disc' : '');
+    var del = isDel(r);
+    var cls = del ? ' del' : (r.status==='Final' ? ' final' : (r.status==='Discarded' ? ' disc' : ''));
     return '<div class="qrow'+cls+'">'+
       '<div class="g">'+
         '<div class="t">'+esc(r.model)+' <span class="dim">'+esc(r.variant)+'</span>'+
           (r.status==='Final'?' <span class="badge b-final">FINAL</span>':'')+
-          (r.status==='Discarded'?' <span class="badge b-disc">discarded</span>':'')+'</div>'+
+          (r.status==='Discarded'?' <span class="badge b-disc">discarded</span>':'')+
+          (del?' <span class="badge b-bad">DELETED</span>':'')+'</div>'+
         '<div class="s">'+fmtDT(dOf(r))+' \u00b7 '+esc(r._cn)+' \u00b7 '+esc(r.quoteNo)+'</div>'+
       '</div>'+
       '<div class="p">'+inr(r.netPayable)+'</div>'+
       (r.shareUrl?'<a class="mini" href="'+esc(r.shareUrl)+'" target="_blank" rel="noopener">View</a>':'')+
-      '<button class="mini go" data-final="'+r.row+'"'+(r.status==='Final'?' disabled':'')+'>'+
-        (r.status==='Final'?'Final':'Keep this one')+'</button>'+
+      (del
+        ? '<button class="mini go" data-restore="'+r.row+'" data-qn="'+esc(r.quoteNo)+'">Restore</button>'
+        : '<button class="mini go" data-final="'+r.row+'"'+(r.status==='Final'?' disabled':'')+'>'+
+            (r.status==='Final'?'Final':'Keep this one')+'</button>'+
+          '<button class="mini del" data-askdel="'+r.row+'" data-qn="'+esc(r.quoteNo)+'" title="Hide this quote from the dashboard">Delete</button>')+
     '</div>';
   }).join('');
 }
@@ -1131,6 +1170,38 @@ function setStatus(payload, done){
     .then(function(res){ done(res); })
     .catch(function(){ done({ok:false}); });
 }
+
+function askDelete(row, qn, btn){
+  var wrap=btn.closest('.qrow'); if(!wrap) return;
+  if(wrap.querySelector('.confirm')) return;
+  var box=document.createElement('div');
+  box.className='confirm';
+  box.innerHTML='<div class="msg">Hide quote '+esc(qn)+' from the dashboard? It stays in your sheet and you can restore it any time.</div>'+
+                '<button class="mini danger" data-dodel="'+row+'" data-qn="'+esc(qn)+'">Yes, delete</button>'+
+                '<button class="mini" data-nodel="1">Cancel</button>';
+  wrap.appendChild(box);
+}
+
+/* Delete = mark the row Deleted. It disappears from every count, chart, panel and
+   export, but the row itself is never destroyed, so it can always come back. */
+function markDeleted(row, qn, on, btn){
+  var box=btn && btn.closest('.confirm');
+  if(box) box.querySelector('.msg').textContent = on ? 'Deleting\u2026' : 'Restoring\u2026';
+  [].forEach.call($('cBody').querySelectorAll('button'),function(b){ b.disabled=true; });
+  setStatus({mode:'one', row:Number(row), quoteNo:qn, status:(on?'Deleted':'')}, function(res){
+    if(res && res.ok){
+      for(var i=0;i<ROWS.length;i++) if(Number(ROWS[i].row)===Number(row)) ROWS[i].status = on?'Deleted':'';
+      rebuildLive();
+      renderCustomer(); render(); stamp(DIAG&&DIAG.generated);
+    } else {
+      alert(res && res.error==='row_moved'
+        ? 'The sheet has changed since this page loaded. Hit Refresh and try again.'
+        : 'Could not save. Check your connection and try again.');
+      renderCustomer();
+    }
+  });
+}
+
 
 function markFinal(row){
   var btns=$('cBody').querySelectorAll('button'); [].forEach.call(btns,function(b){ b.disabled=true; });
@@ -1216,7 +1287,7 @@ function syncMsel(){
 }
 function exportCsv(){
   var rows=filtered();
-  var cnt={}; ROWS.forEach(function(r){ if(r.custPhone) cnt[r.custPhone]=(cnt[r.custPhone]||0)+1; });
+  var cnt={}; LIVE.forEach(function(r){ if(r.custPhone) cnt[r.custPhone]=(cnt[r.custPhone]||0)+1; });
   var head=['Timestamp','Quote No','Consultant','Outlet','Consultant (as typed)','Consultant Phone','Customer','Phone','Model','Variant','Net On-Road','Net Payable','Quotes to this customer','Status','Share Link'];
   var lines=[head.join(',')];
   rows.forEach(function(r){
@@ -1293,7 +1364,15 @@ function wire(){
     var c=e.target.closest('[data-cust]');
     if(c){ openCustomer(c.getAttribute('data-cust')); return; }
     var b=e.target.closest('[data-final]');
-    if(b && !b.disabled){ markFinal(b.getAttribute('data-final')); }
+    if(b && !b.disabled){ markFinal(b.getAttribute('data-final')); return; }
+    var ad=e.target.closest('[data-askdel]');
+    if(ad && !ad.disabled){ askDelete(ad.getAttribute('data-askdel'), ad.getAttribute('data-qn'), ad); return; }
+    var dd=e.target.closest('[data-dodel]');
+    if(dd && !dd.disabled){ doDelete(dd.getAttribute('data-dodel'), dd.getAttribute('data-qn'), dd); return; }
+    var rs=e.target.closest('[data-restore]');
+    if(rs && !rs.disabled){ doRestore(rs.getAttribute('data-restore'), rs.getAttribute('data-qn'), rs); return; }
+    var nd=e.target.closest('[data-nodel]');
+    if(nd){ var c=nd.closest('.confirm'); if(c) c.remove(); return; }
   });
   $('hClose').addEventListener('click',function(){ $('hbg').classList.remove('show'); });
   $('hbg').addEventListener('click',function(e){ if(e.target===$('hbg')) $('hbg').classList.remove('show'); });
@@ -1301,6 +1380,7 @@ function wire(){
   $('cClear').addEventListener('click',clearMarks);
   $('cbg').addEventListener('click',function(e){ if(e.target===$('cbg')) closeCustomer(); });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeCustomer(); $('hbg').classList.remove('show'); } });
+  $('delToggle').addEventListener('click',function(){ SHOWDEL=!SHOWDEL; render(); });
   $('refresh').addEventListener('click',refresh);
   $('out').addEventListener('click',signOut);
   $('csv').addEventListener('click',exportCsv);
