@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Choose Your Variant — RDB Hyundai</title>
+<style>
+:root{--hy:#002C5F;--hy2:#0a4488;--acc:#00AAD2;--ink:#0c1a2b;--muted:#5e7188;--line:#dde5ee;--bg:#eef2f7;}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,Arial,sans-serif;background:
+ radial-gradient(1000px 500px at 100% -10%,rgba(0,170,210,.10),transparent 60%),var(--bg);color:var(--ink);}
+.wrap{max-width:520px;margin:0 auto;padding:18px 16px 60px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px -12px rgba(0,44,95,.22);overflow:hidden}
+.head{background:linear-gradient(120deg,var(--hy),#013a78 60%,#024a96);color:#fff;padding:20px 22px}
+.head h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-.01em}
+.head p{margin:6px 0 0;font-size:13px;color:#cfe4ff}
+.body{padding:20px 22px}
+.hi{font-size:15px;margin:0 0 4px;font-weight:700}
+.sub{font-size:13px;color:var(--muted);margin:0 0 18px}
+label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+select{width:100%;font-size:16px;color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:12px 12px;appearance:none;
+ background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%235e7188' d='M6 8 0 0h12z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:34px}
+select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(0,170,210,.16)}
+select:disabled{background-color:#f4f7fa;color:#9aa8b8}
+.btn{width:100%;margin-top:22px;border:0;border-radius:12px;padding:15px;background:linear-gradient(100deg,var(--hy),#0a4488);color:#fff;font-size:16px;font-weight:800;cursor:pointer}
+.btn:disabled{background:#b8c4d4;cursor:not-allowed}
+.note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.5;text-align:center}
+.state{padding:36px 22px;text-align:center}
+.state .big{font-size:20px;font-weight:800;color:var(--hy);margin:14px 0 6px}
+.state .txt{font-size:14px;color:var(--muted);line-height:1.5}
+.spin{width:30px;height:30px;border:3px solid var(--line);border-top-color:var(--acc);border-radius:50%;margin:0 auto;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.tick{width:56px;height:56px;border-radius:50%;background:#1f7a4d;margin:0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px}
+.foot{padding:12px 22px;border-top:1px solid var(--line);font-size:11px;color:#8497ab;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="head">
+      <h1>RDB Hyundai — On-Road Quotation</h1>
+      <p>Pick your variant and we'll send your exact price on WhatsApp</p>
+    </div>
+
+    <div id="form" class="body" style="display:none">
+      <p class="hi" id="hi">Hi there,</p>
+      <p class="sub" id="sub">Choose the options below for your <b id="mname">car</b>.</p>
+
+      <label>Fuel</label>
+      <select id="fuel"><option value="">— Select fuel —</option></select>
+
+      <label>Transmission</label>
+      <select id="trans" disabled><option value="">— Select fuel first —</option></select>
+
+      <label>Variant</label>
+      <select id="variant" disabled><option value="">— Select transmission first —</option></select>
+
+      <button class="btn" id="go" disabled>Send my quotation</button>
+      <div class="note">You'll receive your full on-road quotation with EMI options on WhatsApp within moments.</div>
+    </div>
+
+    <div id="loading" class="state">
+      <div class="spin"></div>
+      <div class="txt" style="margin-top:16px">Loading your options…</div>
+    </div>
+
+    <div id="done" class="state" style="display:none">
+      <div class="tick">✓</div>
+      <div class="big">Done!</div>
+      <div class="txt" id="doneTxt">Your quotation is on its way to your WhatsApp. Thank you!</div>
+    </div>
+
+    <div id="err" class="state" style="display:none">
+      <div class="big" style="color:#b23b3b">Something went wrong</div>
+      <div class="txt" id="errTxt">Please contact your RDB Hyundai consultant and they'll help you right away.</div>
+    </div>
+
+    <div class="foot">RD Motors Pvt. Ltd. — RDB Hyundai · Authorised Hyundai dealership</div>
+  </div>
+</div>
+
+<script>
+/* ==== CONFIG ==== */
+var APP_URL    = 'https://subham-rdbhyundai.github.io/rdb-quote/';        // source of the live catalogue
+var SUBMIT_URL = 'PASTE_SHEET_WEBAPP_EXEC_URL_HERE';                       // Sheet-Trigger web app (/exec) — set in the wiring step
+
+/* ==== params ==== */
+function qp(k){ try{ return new URLSearchParams(location.search).get(k)||''; }catch(e){ return ''; } }
+var P = { model:qp('model'), name:qp('name'), phone:qp('phone'), cid:qp('cid'), consultant:qp('consultant') };
+
+function show(id){ ['form','loading','done','err'].forEach(function(x){ document.getElementById(x).style.display = (x===id?'':'none'); }); }
+function normKey(s){ return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+var FUEL_LABEL={PETROL:'Petrol',DIESEL:'Diesel',CNG:'CNG',EV:'Electric'};
+
+var CAT=[], ROWS=[]; // ROWS = catalogue rows for the matched model
+
+function boot(){
+  if (P.name) document.getElementById('hi').textContent = 'Hi '+P.name+',';
+  fetch(APP_URL, {cache:'no-store'}).then(function(r){ return r.text(); }).then(function(html){
+    var m = /window\.__BOOT\s*=\s*(\{[\s\S]*?\});<\/script>/.exec(html);
+    if(!m) throw new Error('catalogue');
+    var boot = JSON.parse(m[1]);
+    CAT = (boot.cat||[]).map(function(r){ ['modelDisp','variant','edition','color','trans','fuel'].forEach(function(k){ if(typeof r[k]==='string') r[k]=r[k].trim(); }); if(typeof r.variant==='string') r.variant=r.variant.replace(/ \(O\)/g,'(O)'); return r; });
+    matchModel();
+  }).catch(function(){ show('err'); });
+}
+
+function matchModel(){
+  var pm = normKey(P.model).replace(/^NEW/,'');
+  // rows whose model matches the param model (either direction of containment)
+  ROWS = CAT.filter(function(r){ var cm=normKey(r.modelDisp); return cm===pm || pm.indexOf(cm)>=0 || cm.indexOf(pm)>=0; });
+  // prefer the single best model name if several matched
+  var models = {}; ROWS.forEach(function(r){ models[r.modelDisp]=1; });
+  var names = Object.keys(models);
+  if (names.length>1){ // keep the closest by length to the param
+    names.sort(function(a,b){ return Math.abs(normKey(a).length-pm.length)-Math.abs(normKey(b).length-pm.length); });
+    var keep = names[0]; ROWS = ROWS.filter(function(r){ return r.modelDisp===keep; });
+  }
+  if(!ROWS.length){ document.getElementById('errTxt').textContent='We could not find that model. Please contact your RDB Hyundai consultant.'; show('err'); return; }
+  document.getElementById('mname').textContent = ROWS[0].modelDisp;
+  fillFuels(); show('form');
+}
+function uniq(a){ var s={},o=[]; a.forEach(function(x){ if(x!=null&&!s[x]){s[x]=1;o.push(x);} }); return o; }
+function fillFuels(){
+  var fuels = uniq(ROWS.map(function(r){ return r.fuel; }));
+  var sel=document.getElementById('fuel');
+  sel.innerHTML='<option value="">— Select fuel —</option>'+fuels.map(function(f){ return '<option value="'+f+'">'+(FUEL_LABEL[f]||f)+'</option>'; }).join('');
+}
+function onFuel(){
+  var f=document.getElementById('fuel').value, t=document.getElementById('trans');
+  document.getElementById('variant').innerHTML='<option value="">— Select transmission first —</option>'; document.getElementById('variant').disabled=true;
+  if(!f){ t.innerHTML='<option value="">— Select fuel first —</option>'; t.disabled=true; checkGo(); return; }
+  var trs = uniq(ROWS.filter(function(r){ return r.fuel===f; }).map(function(r){ return r.trans; }));
+  t.innerHTML='<option value="">— Select transmission —</option>'+trs.map(function(x){ return '<option value="'+x+'">'+x+'</option>'; }).join('');
+  t.disabled=false; checkGo();
+}
+function onTrans(){
+  var f=document.getElementById('fuel').value, tr=document.getElementById('trans').value, v=document.getElementById('variant');
+  if(!tr){ v.innerHTML='<option value="">— Select transmission first —</option>'; v.disabled=true; checkGo(); return; }
+  var vs = ROWS.filter(function(r){ return r.fuel===f && r.trans===tr; });
+  v.innerHTML='<option value="">— Select variant —</option>'+vs.map(function(r){
+    var ed=(r.edition&&r.edition!=='Normal')?(' '+r.edition):'';
+    return '<option value="'+encodeURIComponent(r.variant)+'">'+r.variant+ed+'</option>'; }).join('');
+  v.disabled=false; checkGo();
+}
+function checkGo(){ document.getElementById('go').disabled = !document.getElementById('variant').value; }
+
+function submit(){
+  var variant = decodeURIComponent(document.getElementById('variant').value||'');
+  var fuel = document.getElementById('fuel').value;
+  if(!variant){ return; }
+  show('loading'); document.getElementById('loading').querySelector('.txt').textContent='Preparing your quotation…';
+  var params = {
+    action:'pick', model:ROWS[0].modelDisp, fuel:fuel, variant:variant,
+    phone:P.phone, cid:P.cid, name:P.name, consultant:P.consultant
+  };
+  var cb='__pick_'+Math.floor(Math.random()*1e9);
+  var timer=setTimeout(function(){ cleanup(); show('done'); }, 9000); // optimistic if no callback
+  window[cb]=function(res){ clearTimeout(timer); cleanup(); if(res&&res.ok===false){ if(res.error) document.getElementById('errTxt').textContent=res.error; show('err'); } else { show('done'); } };
+  function cleanup(){ try{ delete window[cb]; }catch(e){ window[cb]=undefined; } var s=document.getElementById(cb); if(s&&s.parentNode) s.parentNode.removeChild(s); }
+  var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+  if(SUBMIT_URL.indexOf('PASTE_')===0){ clearTimeout(timer); show('done'); return; } // demo mode before wiring
+  var s=document.createElement('script'); s.id=cb; s.src=SUBMIT_URL+'?'+qs+'&callback='+cb;
+  s.onerror=function(){ clearTimeout(timer); cleanup(); show('done'); }; // fire-and-forget fallback
+  document.body.appendChild(s);
+}
+
+document.getElementById('fuel').addEventListener('change',onFuel);
+document.getElementById('trans').addEventListener('change',onTrans);
+document.getElementById('variant').addEventListener('change',checkGo);
+document.getElementById('go').addEventListener('click',submit);
+if(!P.model){ document.getElementById('errTxt').textContent='This link is missing its details. Please contact your RDB Hyundai consultant.'; show('err'); }
+else { boot(); }
+</script>
+</body>
+</html>
