@@ -26,7 +26,12 @@ select:disabled{background-color:#f4f7fa;color:#9aa8b8}
 .btn{width:100%;margin-top:22px;border:0;border-radius:12px;padding:15px;background:linear-gradient(100deg,var(--hy),#0a4488);color:#fff;font-size:16px;font-weight:800;cursor:pointer}
 .btn:disabled{background:#b8c4d4;cursor:not-allowed}
 .note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.5;text-align:center}
-.state{padding:36px 22px;text-align:center}
+.deny-row{text-align:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.deny-link{font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:none;border-bottom:1px dashed #c3cedb}
+.deny-link:hover{color:var(--hy);border-bottom-color:var(--hy)}
+.rbtn{display:block;width:100%;margin:9px 0;border:1.5px solid var(--line);border-radius:11px;padding:14px;background:#fff;color:var(--ink);font-size:15px;font-weight:600;cursor:pointer;text-align:center}
+.rbtn:hover{border-color:var(--acc);background:#f5fbfd}
+.state{padding:34px 22px;text-align:center}
 .state .big{font-size:20px;font-weight:800;color:var(--hy);margin:14px 0 6px}
 .state .txt{font-size:14px;color:var(--muted);line-height:1.5}
 .spin{width:30px;height:30px;border:3px solid var(--line);border-top-color:var(--acc);border-radius:50%;margin:0 auto;animation:sp 1s linear infinite}
@@ -61,6 +66,17 @@ select:disabled{background-color:#f4f7fa;color:#9aa8b8}
 
       <button class="btn" id="go" disabled>Send my quotation</button>
       <div class="note">You'll receive your full on-road quotation with EMI options on WhatsApp within moments.</div>
+
+      <div class="deny-row"><a id="denyLink" class="deny-link">I didn't make this enquiry ›</a></div>
+    </div>
+
+    <div id="deny" class="state" style="display:none">
+      <div class="big">Just to confirm</div>
+      <div class="txt" style="margin-bottom:16px">Please tell us why, so we can update our records:</div>
+      <button class="rbtn" data-r="Never made this enquiry">I never made this enquiry</button>
+      <button class="rbtn" data-r="Added by mistake">It was added by mistake</button>
+      <button class="rbtn" data-r="No longer interested">I'm no longer interested</button>
+      <div style="margin-top:10px"><a id="denyBack" class="deny-link">‹ Back</a></div>
     </div>
 
     <div id="loading" class="state">
@@ -72,6 +88,12 @@ select:disabled{background-color:#f4f7fa;color:#9aa8b8}
       <div class="tick">✓</div>
       <div class="big">Done!</div>
       <div class="txt" id="doneTxt">Your quotation is on its way to your WhatsApp. Thank you!</div>
+    </div>
+
+    <div id="denied" class="state" style="display:none">
+      <div class="tick" style="background:#6b7280">✓</div>
+      <div class="big">Thank you</div>
+      <div class="txt">We've noted this and updated our records. You won't receive further messages about this enquiry. Sorry for any inconvenience.</div>
     </div>
 
     <div id="err" class="state" style="display:none">
@@ -86,13 +108,20 @@ select:disabled{background-color:#f4f7fa;color:#9aa8b8}
 <script>
 /* ==== CONFIG ==== */
 var APP_URL    = 'https://subham-rdbhyundai.github.io/rdb-quote/';   // source of the live catalogue
-var SUBMIT_URL = 'PASTE_SHEET_WEBAPP_EXEC_URL_HERE';                 // Sheet-Trigger web app (/exec) — set in the wiring step
+var SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbxHaOMPjcJERgY219aGdnSNfyppVI9G_Vc-CrPyhvIyuz0DPUDI6-tKIOnrGRvnDC2rYg/exec';  // Sheet-Trigger web app (/exec)
 
-/* ==== params ==== */
+/* ==== params (supports individual params OR a single base64url d= blob) ==== */
 function qp(k){ try{ return new URLSearchParams(location.search).get(k)||''; }catch(e){ return ''; } }
+function b64urlDecode(s){
+  s = String(s||'').replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
+  try{ return decodeURIComponent(escape(atob(s))); }catch(e){ try{ return atob(s); }catch(_){ return ''; } }
+}
 var P = { model:qp('model'), name:qp('name'), phone:qp('phone'), cid:qp('cid'), consultant:qp('consultant') };
+(function(){ var d=qp('d'); if(!d) return;
+  try{ var o=JSON.parse(b64urlDecode(d)); ['model','name','phone','cid','consultant'].forEach(function(k){ if(o[k]!=null&&o[k]!=='') P[k]=String(o[k]); }); }catch(e){}
+})();
 
-function show(id){ ['form','loading','done','err'].forEach(function(x){ document.getElementById(x).style.display = (x===id?'':'none'); }); }
+function show(id){ ['form','deny','loading','done','denied','err'].forEach(function(x){ document.getElementById(x).style.display = (x===id?'':'none'); }); }
 function normKey(s){ return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9]/g,''); }
 function uniq(a){ var s={},o=[]; a.forEach(function(x){ if(x!=null&&!s[x]){s[x]=1;o.push(x);} }); return o; }
 var FUEL_LABEL={PETROL:'Petrol',DIESEL:'Diesel',CNG:'CNG',EV:'Electric'};
@@ -114,7 +143,6 @@ function buildModels(){
   var models = uniq(CAT.map(function(r){ return r.modelDisp; }));
   var sel=document.getElementById('model');
   sel.innerHTML='<option value="">— Select model —</option>'+models.map(function(m){ return '<option value="'+m.replace(/"/g,'&quot;')+'">'+m+'</option>'; }).join('');
-  // fuzzy-match the enquiry model and pre-select it
   var pm = normKey(P.model).replace(/^NEW/,'');
   var best='', bestScore=-1;
   models.forEach(function(m){ var cm=normKey(m); var s=-1;
@@ -153,22 +181,35 @@ function onTrans(){
 }
 function checkGo(){ document.getElementById('go').disabled = !(document.getElementById('model').value && document.getElementById('variant').value); }
 
+/* ==== JSONP submit helper (shared by pick + deny) ==== */
+function jsonp(params, prefix, onFinish){
+  var cb=prefix+Math.floor(Math.random()*1e9);
+  var timer=setTimeout(function(){ cleanup(); onFinish(); }, 9000);
+  window[cb]=function(res){ clearTimeout(timer); cleanup(); onFinish(res); };
+  function cleanup(){ try{ delete window[cb]; }catch(e){ window[cb]=undefined; } var s=document.getElementById(cb); if(s&&s.parentNode) s.parentNode.removeChild(s); }
+  var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+  if(SUBMIT_URL.indexOf('PASTE_')===0){ clearTimeout(timer); onFinish(); return; } // demo mode before wiring
+  var s=document.createElement('script'); s.id=cb; s.src=SUBMIT_URL+'?'+qs+'&callback='+cb;
+  s.onerror=function(){ clearTimeout(timer); cleanup(); onFinish(); };
+  document.body.appendChild(s);
+}
+
 function submit(){
   var model=document.getElementById('model').value;
   var fuel=document.getElementById('fuel').value;
   var variant=decodeURIComponent(document.getElementById('variant').value||'');
   if(!model||!variant){ return; }
   show('loading'); document.getElementById('loading').querySelector('.txt').textContent='Preparing your quotation…';
-  var params = { action:'pick', model:model, fuel:fuel, variant:variant, phone:P.phone, cid:P.cid, name:P.name, consultant:P.consultant };
-  var cb='__pick_'+Math.floor(Math.random()*1e9);
-  var timer=setTimeout(function(){ cleanup(); show('done'); }, 9000);
-  window[cb]=function(res){ clearTimeout(timer); cleanup(); if(res&&res.ok===false){ if(res.error) document.getElementById('errTxt').textContent=res.error; show('err'); } else { show('done'); } };
-  function cleanup(){ try{ delete window[cb]; }catch(e){ window[cb]=undefined; } var s=document.getElementById(cb); if(s&&s.parentNode) s.parentNode.removeChild(s); }
-  var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
-  if(SUBMIT_URL.indexOf('PASTE_')===0){ clearTimeout(timer); show('done'); return; } // demo mode before wiring
-  var s=document.createElement('script'); s.id=cb; s.src=SUBMIT_URL+'?'+qs+'&callback='+cb;
-  s.onerror=function(){ clearTimeout(timer); cleanup(); show('done'); };
-  document.body.appendChild(s);
+  jsonp({ action:'pick', model:model, fuel:fuel, variant:variant, phone:P.phone, cid:P.cid, name:P.name, consultant:P.consultant },
+    '__pick_',
+    function(res){ if(res&&res.ok===false){ if(res.error) document.getElementById('errTxt').textContent=res.error; show('err'); } else { show('done'); } });
+}
+
+function submitDeny(reason){
+  show('loading'); document.getElementById('loading').querySelector('.txt').textContent='Updating your records…';
+  jsonp({ action:'deny', reason:reason, phone:P.phone, cid:P.cid, name:P.name, consultant:P.consultant, model:P.model },
+    '__deny_',
+    function(){ show('denied'); });   // always thank the customer, even if the write is slow
 }
 
 document.getElementById('model').addEventListener('change',onModel);
@@ -176,6 +217,11 @@ document.getElementById('fuel').addEventListener('change',onFuel);
 document.getElementById('trans').addEventListener('change',onTrans);
 document.getElementById('variant').addEventListener('change',checkGo);
 document.getElementById('go').addEventListener('click',submit);
+document.getElementById('denyLink').addEventListener('click',function(){ show('deny'); });
+document.getElementById('denyBack').addEventListener('click',function(){ show('form'); });
+Array.prototype.forEach.call(document.querySelectorAll('.rbtn'),function(b){
+  b.addEventListener('click',function(){ submitDeny(b.getAttribute('data-r')); });
+});
 boot();
 </script>
 </body>
