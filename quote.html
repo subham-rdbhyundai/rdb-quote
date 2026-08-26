@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get Your On-Road Price — RDB Hyundai</title>
+<style>
+:root{--hy:#002C5F;--hy2:#0a4488;--acc:#00AAD2;--ink:#0c1a2b;--muted:#5e7188;--line:#dde5ee;--bg:#eef2f7;}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,Arial,sans-serif;background:
+ radial-gradient(1000px 500px at 100% -10%,rgba(0,170,210,.10),transparent 60%),var(--bg);color:var(--ink);}
+.wrap{max-width:540px;margin:0 auto;padding:18px 16px 60px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px -12px rgba(0,44,95,.22);overflow:hidden}
+.head{background:linear-gradient(120deg,var(--hy),#013a78 60%,#024a96);color:#fff;padding:20px 22px}
+.head h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-.01em}
+.head p{margin:6px 0 0;font-size:13px;color:#cfe4ff}
+.body{padding:20px 22px}
+label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+input,select{width:100%;font-size:16px;color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:12px 12px;appearance:none}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%235e7188' d='M6 8 0 0h12z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:34px}
+input:focus,select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(0,170,210,.16)}
+select:disabled{background-color:#f4f7fa;color:#9aa8b8}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{width:100%;margin-top:22px;border:0;border-radius:12px;padding:15px;background:linear-gradient(100deg,var(--hy),#0a4488);color:#fff;font-size:16px;font-weight:800;cursor:pointer}
+.btn:disabled{background:#b8c4d4;cursor:not-allowed}
+.note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.5;text-align:center}
+.state{padding:36px 22px;text-align:center}
+.state .big{font-size:20px;font-weight:800;color:var(--hy);margin:14px 0 6px}
+.state .txt{font-size:14px;color:var(--muted);line-height:1.5}
+.spin{width:30px;height:30px;border:3px solid var(--line);border-top-color:var(--acc);border-radius:50%;margin:0 auto;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.tick{width:56px;height:56px;border-radius:50%;background:#1f7a4d;margin:0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px}
+.foot{padding:12px 22px;border-top:1px solid var(--line);font-size:11px;color:#8497ab;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="head">
+      <h1>RDB Hyundai — Instant On-Road Price</h1>
+      <p>Pick your car and options — we'll WhatsApp your exact on-road quotation in moments</p>
+    </div>
+
+    <div id="form" class="body" style="display:none">
+      <div class="row2">
+        <div><label>Your Name</label><input id="name" type="text" placeholder="Full name"></div>
+        <div><label>WhatsApp Number</label><input id="phone" type="tel" inputmode="numeric" placeholder="10-digit mobile"></div>
+      </div>
+
+      <label>Model</label>
+      <select id="model"><option value="">— Select model —</option></select>
+
+      <label>Fuel</label>
+      <select id="fuel" disabled><option value="">— Select model first —</option></select>
+
+      <label>Transmission</label>
+      <select id="trans" disabled><option value="">— Select fuel first —</option></select>
+
+      <label>Variant</label>
+      <select id="variant" disabled><option value="">— Select transmission first —</option></select>
+
+      <label>Colour</label>
+      <select id="color" disabled><option value="">— Select variant first —</option></select>
+
+      <div class="row2">
+        <div>
+          <label>Insurance</label>
+          <select id="ins">
+            <option value="FAO">Full Add-on</option>
+            <option value="B2B">B2B</option>
+            <option value="BASIC">Basic</option>
+          </select>
+        </div>
+        <div>
+          <label>Road Tax</label>
+          <select id="roadtax">
+            <option value="5Y">5 Years</option>
+            <option value="LT">Lifetime / 15 Yr</option>
+            <option value="BH">BH-series</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Registration</label>
+      <select id="regType">
+        <option value="Individual">Individual</option>
+        <option value="Company">Company</option>
+        <option value="Commercial">Commercial</option>
+      </select>
+
+      <button class="btn" id="go" disabled>Send my on-road quotation</button>
+      <div class="note">Your full breakdown with EMI options arrives on WhatsApp within moments. Prices are indicative and subject to confirmation.</div>
+    </div>
+
+    <div id="loading" class="state">
+      <div class="spin"></div>
+      <div class="txt" style="margin-top:16px">Loading models…</div>
+    </div>
+
+    <div id="done" class="state" style="display:none">
+      <div class="tick">✓</div>
+      <div class="big">On its way!</div>
+      <div class="txt">Your on-road quotation is being sent to your WhatsApp now. Thank you for choosing RDB Hyundai!</div>
+    </div>
+
+    <div id="err" class="state" style="display:none">
+      <div class="big" style="color:#b23b3b">Something went wrong</div>
+      <div class="txt" id="errTxt">Please try again, or contact RDB Hyundai and we'll help you right away.</div>
+    </div>
+
+    <div class="foot">RD Motors Pvt. Ltd. — RDB Hyundai · Authorised Hyundai dealership</div>
+  </div>
+</div>
+
+<script>
+/* ==== CONFIG ==== */
+var APP_URL    = 'https://subham-rdbhyundai.github.io/rdb-quote/';   // live catalogue source
+var SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbzPjZWZjf0wUgFGIGL_PUFNT-DCXWwVnIPIAaJ9HcKf6nh2ZsGHuBLW94PdGkSNY7uzjA/exec';   // Compute Engine /exec
+
+function show(id){ ['form','loading','done','err'].forEach(function(x){ document.getElementById(x).style.display = (x===id?'':'none'); }); }
+function uniq(a){ var s={},o=[]; a.forEach(function(x){ if(x!=null&&x!==''&&!s[x]){s[x]=1;o.push(x);} }); return o; }
+var FUEL_LABEL={PETROL:'Petrol',DIESEL:'Diesel',CNG:'CNG',EV:'Electric'};
+var CAT=[], curRows=[];
+
+function boot(){
+  fetch(APP_URL, {cache:'no-store'}).then(function(r){ return r.text(); }).then(function(html){
+    var m = /window\.__BOOT\s*=\s*(\{[\s\S]*?\});<\/script>/.exec(html);
+    if(!m) throw new Error('catalogue');
+    var boot = JSON.parse(m[1]);
+    CAT = (boot.cat||[]).map(function(r){ ['modelDisp','variant','edition','color','trans','fuel'].forEach(function(k){ if(typeof r[k]==='string') r[k]=r[k].trim(); }); if(typeof r.variant==='string') r.variant=r.variant.replace(/ \(O\)/g,'(O)'); return r; });
+    var models = uniq(CAT.map(function(r){ return r.modelDisp; }));
+    document.getElementById('model').innerHTML='<option value="">— Select model —</option>'+models.map(function(m){ return '<option value="'+m.replace(/"/g,'&quot;')+'">'+m+'</option>'; }).join('');
+    show('form');
+  }).catch(function(){ show('err'); });
+}
+
+function onModel(){
+  var m=document.getElementById('model').value;
+  curRows = m ? CAT.filter(function(r){ return r.modelDisp===m; }) : [];
+  resetFrom('fuel');
+  var f=document.getElementById('fuel');
+  if(!m){ f.innerHTML='<option value="">— Select model first —</option>'; f.disabled=true; checkGo(); return; }
+  var fuels = uniq(curRows.map(function(r){ return r.fuel; }));
+  f.innerHTML='<option value="">— Select fuel —</option>'+fuels.map(function(x){ return '<option value="'+x+'">'+(FUEL_LABEL[x]||x)+'</option>'; }).join('');
+  f.disabled=false; checkGo();
+}
+function onFuel(){
+  var f=document.getElementById('fuel').value, t=document.getElementById('trans');
+  resetFrom('trans');
+  if(!f){ t.innerHTML='<option value="">— Select fuel first —</option>'; t.disabled=true; checkGo(); return; }
+  var trs = uniq(curRows.filter(function(r){ return r.fuel===f; }).map(function(r){ return r.trans; }));
+  t.innerHTML='<option value="">— Select transmission —</option>'+trs.map(function(x){ return '<option value="'+x+'">'+x+'</option>'; }).join('');
+  t.disabled=false; checkGo();
+}
+function onTrans(){
+  var f=document.getElementById('fuel').value, tr=document.getElementById('trans').value, v=document.getElementById('variant');
+  resetFrom('variant');
+  if(!tr){ v.innerHTML='<option value="">— Select transmission first —</option>'; v.disabled=true; checkGo(); return; }
+  var vs = uniq(curRows.filter(function(r){ return r.fuel===f && r.trans===tr; }).map(function(r){
+    var ed=(r.edition&&r.edition!=='Normal')?(' '+r.edition):''; return r.variant+ed+'§'+r.variant; }));
+  v.innerHTML='<option value="">— Select variant —</option>'+vs.map(function(x){ var p=x.split('§'); return '<option value="'+encodeURIComponent(p[1])+'">'+p[0]+'</option>'; }).join('');
+  v.disabled=false; checkGo();
+}
+function onVariant(){
+  var f=document.getElementById('fuel').value, tr=document.getElementById('trans').value;
+  var vv=decodeURIComponent(document.getElementById('variant').value||''), c=document.getElementById('color');
+  if(!vv){ c.innerHTML='<option value="">— Select variant first —</option>'; c.disabled=true; checkGo(); return; }
+  var cols = uniq(curRows.filter(function(r){ return r.fuel===f && r.trans===tr && r.variant===vv; }).map(function(r){ return r.color; }))
+             .filter(function(x){ return x && x!=='Single Color'; });
+  if(!cols.length) cols=['Standard'];
+  c.innerHTML=cols.map(function(x){ return '<option value="'+x.replace(/"/g,'&quot;')+'">'+x+'</option>'; }).join('');
+  c.disabled=false; checkGo();
+}
+function resetFrom(level){
+  var order=['fuel','trans','variant','color'], from=order.indexOf(level);
+  order.slice(from).forEach(function(id){ var el=document.getElementById(id); if(el){ el.innerHTML='<option value=""></option>'; el.disabled=true; } });
+}
+function validPhone(){ return (document.getElementById('phone').value||'').replace(/\D/g,'').length>=10; }
+function checkGo(){
+  document.getElementById('go').disabled = !(document.getElementById('name').value.trim() && validPhone()
+    && document.getElementById('variant').value && document.getElementById('color').value);
+}
+
+function submit(){
+  var params = {
+    self:'1',
+    custName: document.getElementById('name').value.trim(),
+    custPhone: (document.getElementById('phone').value||'').replace(/\D/g,'').slice(-10),
+    model: document.getElementById('model').value,
+    fuel: document.getElementById('fuel').value,
+    variant: decodeURIComponent(document.getElementById('variant').value||''),
+    color: document.getElementById('color').value,
+    ins: document.getElementById('ins').value,
+    roadtax: document.getElementById('roadtax').value,
+    regType: document.getElementById('regType').value
+  };
+  if(!params.variant||!params.custName||!params.custPhone) return;
+  show('loading'); document.getElementById('loading').querySelector('.txt').textContent='Preparing your on-road quotation…';
+  var cb='__q_'+Math.floor(Math.random()*1e9);
+  var timer=setTimeout(function(){ cleanup(); show('done'); }, 12000);
+  window[cb]=function(res){ clearTimeout(timer); cleanup(); if(res&&res.ok===false){ if(res.error) document.getElementById('errTxt').textContent=res.error; show('err'); } else { show('done'); } };
+  function cleanup(){ try{ delete window[cb]; }catch(e){ window[cb]=undefined; } var s=document.getElementById(cb); if(s&&s.parentNode) s.parentNode.removeChild(s); }
+  var qs=Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+  var s=document.createElement('script'); s.id=cb; s.src=SUBMIT_URL+'?'+qs+'&callback='+cb;
+  s.onerror=function(){ clearTimeout(timer); cleanup(); show('done'); };
+  document.body.appendChild(s);
+}
+
+document.getElementById('model').addEventListener('change',onModel);
+document.getElementById('fuel').addEventListener('change',onFuel);
+document.getElementById('trans').addEventListener('change',onTrans);
+document.getElementById('variant').addEventListener('change',onVariant);
+document.getElementById('color').addEventListener('change',checkGo);
+document.getElementById('name').addEventListener('input',checkGo);
+document.getElementById('phone').addEventListener('input',checkGo);
+document.getElementById('go').addEventListener('click',submit);
+boot();
+</script>
+</body>
+</html>
