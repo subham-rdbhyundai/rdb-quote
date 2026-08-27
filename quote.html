@@ -68,9 +68,6 @@ select:disabled{background-color:#f4f7fa;color:#9aa8b8}
       <label>Variant</label>
       <select id="variant" disabled><option value="">— Select transmission first —</option></select>
 
-      <label>Colour</label>
-      <select id="color" disabled><option value="">— Select variant first —</option></select>
-
       <div class="row2">
         <div>
           <label>Insurance</label>
@@ -170,24 +167,15 @@ function onTrans(){
   v.innerHTML='<option value="">— Select variant —</option>'+vs.map(function(x){ var p=x.split('§'); return '<option value="'+encodeURIComponent(p[1])+'">'+p[0]+'</option>'; }).join('');
   v.disabled=false; checkGo();
 }
-function onVariant(){
-  var f=document.getElementById('fuel').value, tr=document.getElementById('trans').value;
-  var vv=decodeURIComponent(document.getElementById('variant').value||''), c=document.getElementById('color');
-  if(!vv){ c.innerHTML='<option value="">— Select variant first —</option>'; c.disabled=true; checkGo(); return; }
-  var cols = uniq(curRows.filter(function(r){ return r.fuel===f && r.trans===tr && r.variant===vv; }).map(function(r){ return r.color; }))
-             .filter(function(x){ return x && x!=='Single Color'; });
-  if(!cols.length) cols=['Standard'];
-  c.innerHTML=cols.map(function(x){ return '<option value="'+x.replace(/"/g,'&quot;')+'">'+x+'</option>'; }).join('');
-  c.disabled=false; checkGo();
-}
+function onVariant(){ checkGo(); }
 function resetFrom(level){
-  var order=['fuel','trans','variant','color'], from=order.indexOf(level);
+  var order=['fuel','trans','variant'], from=order.indexOf(level);
   order.slice(from).forEach(function(id){ var el=document.getElementById(id); if(el){ el.innerHTML='<option value=""></option>'; el.disabled=true; } });
 }
 function validPhone(){ return (document.getElementById('phone').value||'').replace(/\D/g,'').length>=10; }
 function checkGo(){
   document.getElementById('go').disabled = !(document.getElementById('name').value.trim() && validPhone()
-    && document.getElementById('variant').value && document.getElementById('color').value);
+    && document.getElementById('variant').value);
 }
 
 function submit(){
@@ -198,7 +186,6 @@ function submit(){
     model: document.getElementById('model').value,
     fuel: document.getElementById('fuel').value,
     variant: decodeURIComponent(document.getElementById('variant').value||''),
-    color: document.getElementById('color').value,
     ins: document.getElementById('ins').value,
     roadtax: document.getElementById('roadtax').value,
     regType: document.getElementById('regType').value
@@ -219,7 +206,6 @@ document.getElementById('model').addEventListener('change',onModel);
 document.getElementById('fuel').addEventListener('change',onFuel);
 document.getElementById('trans').addEventListener('change',onTrans);
 document.getElementById('variant').addEventListener('change',onVariant);
-document.getElementById('color').addEventListener('change',checkGo);
 document.getElementById('name').addEventListener('input',checkGo);
 document.getElementById('phone').addEventListener('input',checkGo);
 document.getElementById('go').addEventListener('click',submit);
