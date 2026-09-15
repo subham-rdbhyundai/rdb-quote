@@ -178,7 +178,11 @@ function checkGo(){
     && document.getElementById('variant').value);
 }
 
+var __submitting=false;
 function submit(){
+  if(__submitting) return;              // guard: ignore repeat taps while a quote is in flight
+  __submitting=true;
+  document.getElementById('go').disabled=true;
   var params = {
     self:'1',
     custName: document.getElementById('name').value.trim(),
@@ -195,7 +199,7 @@ function submit(){
   var cb='__q_'+Math.floor(Math.random()*1e9);
   var timer=setTimeout(function(){ cleanup(); show('done'); }, 12000);
   window[cb]=function(res){ clearTimeout(timer); cleanup(); if(res&&res.ok===false){ if(res.error) document.getElementById('errTxt').textContent=res.error; show('err'); } else { show('done'); } };
-  function cleanup(){ try{ delete window[cb]; }catch(e){ window[cb]=undefined; } var s=document.getElementById(cb); if(s&&s.parentNode) s.parentNode.removeChild(s); }
+  function cleanup(){ __submitting=false; try{ delete window[cb]; }catch(e){ window[cb]=undefined; } var s=document.getElementById(cb); if(s&&s.parentNode) s.parentNode.removeChild(s); checkGo(); }
   var qs=Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
   var s=document.createElement('script'); s.id=cb; s.src=SUBMIT_URL+'?'+qs+'&callback='+cb;
   s.onerror=function(){ clearTimeout(timer); cleanup(); show('done'); };
