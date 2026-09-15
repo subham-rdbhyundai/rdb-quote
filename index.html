@@ -601,18 +601,26 @@ function accInfo(){const row=currentRow();let items=[],t=0;
 
 /* ===== engine ===== */
 function calcBH(ex,fuel,taxpct){taxpct=(taxpct==null?18:taxpct);const inv=ex*100/(100+taxpct);
-  let slab=inv<=1000000?0.08:inv<=2000000?0.10:0.12;const f=String(fuel||'').toUpperCase();
+  let slab=inv<1000000?0.08:inv<=2000000?0.10:0.12;   /* gazette: below 10L = 8%, 10-20L = 10%, above 20L = 12% */const f=String(fuel||'').toUpperCase();
   if(f.includes('DIESEL'))slab+=0.02;else if(f.includes('ELECTRIC')||f==='EV')slab-=0.02;
-  return (inv*slab*1.25*2)/15+6800;}
+  return (inv*slab*1.25*2)/15;}          /* RTO fee is added once, in baseRoadTax */
 function calcInsurance(ex,tier,tp){const od=(ex*0.95)*0.03343,ncb=od*0.19;
   const addon=tier==='FAO'?ex*0.0086:0,pa=(tier==='FAO'||tier==='B2B')?ex*0.005:0;
   return (od+pa+addon+tp-ncb)*1.18;}
 
 function isEV(fuel){var f=String(fuel||'').toUpperCase();return f==='EV'||f.indexOf('ELECTRIC')>=0;}
 function isPrime(r){return /prime/i.test((r&&r.modelDisp)||'')||((r&&r.edition)==='Commercial');}
-function baseRoadTax(ex,fuel,bh,prime){ if(prime)return ex*0.012+10000; if(isEV(fuel))return 33080; if(S.roadtax==='5Y')return ex*0.055+6800; if(S.roadtax==='LT')return ex*0.10+6800; return calcBH(ex,fuel,bh)+6800; }
+function baseRoadTax(ex,fuel,bh,prime){
+  if(prime)return ex*0.012+10000;
+  if(S.roadtax==='BH')return calcBH(ex,fuel,bh)+6800;   /* BH applies to EVs too (gazette: 2% less) */
+  if(isEV(fuel))return 33080;
+  if(S.roadtax==='5Y')return ex*0.055+6800;
+  if(S.roadtax==='LT')return ex*0.10+6800;
+  return calcBH(ex,fuel,bh)+6800;
+}
+var COMM={offer:5500,permit:13300,vltd:16100};   /* commercial / taxi: quoted separately */
 function fastagAmt(){return S.fastag==='AP'?3800:S.fastag==='Y'?1000:0;}
-function rtLabel(ov,ev,bhv,prime){ if(ov)return 'Manual entry'; if(prime)return 'Commercial / Taxi \u2014 reg + road tax'; if(ev)return 'EV \u2014 fixed reg + road tax'; if(bhv>0)return ROADTAX_LBL['BH']+' \u00b7 incl \u20b96,800 vendor charge'; return ROADTAX_LBL[S.roadtax]; }
+function rtLabel(ov,ev,bhv,prime){ if(ov)return 'Manual entry'; if(prime)return 'Commercial / Taxi \u2014 reg + road tax'; if(bhv>0)return ROADTAX_LBL['BH']; if(ev)return 'EV \u2014 fixed reg + road tax'; return ROADTAX_LBL[S.roadtax]; }
 /* on-road for ANY row under the currently selected options (package only, deal-neutral) */
 function onRoadFor(r){const ex=r.ex+((S.matte&&r.matte)?r.matte:0),tcs=ex>=1000000?ex*0.01:0,netEx=ex-(r.sch_consumer||0);
   var _prc=isPrime(r); let rt=baseRoadTax(ex,r.fuel,r.bh_taxpct,_prc);
@@ -743,13 +751,14 @@ function fillProtection(){var r=currentRow();
 /* build the full quote object from live inputs (also used for saving) */
 function buildQuote(){const r=currentRow();if(!r)return null;const exBase=r.ex;const matteAmt=(S.matte&&r.matte)?r.matte:0;const ex=exBase+matteAmt;
   const tcs=ex>=1000000?ex*0.01:0,consumer=r.sch_consumer||0,netEx=ex-consumer;
-  var _pr=isPrime(r); var _ev=isEV(r.fuel); var _bhVendor=(!_pr&&!_ev&&S.roadtax==='BH')?6800:0;
+  var _pr=isPrime(r); var _ev=isEV(r.fuel); var _bhVendor=(!_pr&&S.roadtax==='BH')?6800:0;
   let roadtax=baseRoadTax(ex,r.fuel,r.bh_taxpct,_pr);
   var _rtMan=parseFloat((val('f_roadtax_man')||'').replace(/[^0-9.]/g,'')); var rtOv=!isNaN(_rtMan)&&_rtMan>0; if(rtOv){roadtax=_rtMan;_bhVendor=0;}
   var _insCalc=calcInsurance(ex,S.ins,r.tp||15500); var _insMan=parseFloat((val('f_ins_man')||'').replace(/[^0-9.]/g,'')); var insOv=!isNaN(_insMan)&&_insMan>0;
   const ins=insOv?_insMan:_insCalc,hypo=S.hypo==='Y'?(_pr?2500:1500):0,fastag=fastagAmt();
   const sot=0,ew=0;
-  const ai=accInfo(),acc=ai.t,primary=netEx+roadtax+ins+hypo+fastag+acc;
+  const commOn=_pr&&!rtOv, commOffer=commOn?COMM.offer:0, commPermit=commOn?COMM.permit:0, commVltd=commOn?COMM.vltd:0;
+  const ai=accInfo(),acc=ai.t,primary=netEx+roadtax+ins+hypo+fastag+acc+commOffer+commPermit+commVltd;
   const exch=S.exchange?(r.sch_exchange||0):0,scrap=S.scrap?(r.sch_scrap||0):0,poi=S.poi?(r.sch_poi||0):0,samb=S.sambandh?(r.sch_sambandh||0):0;
   const upg=S.upgrade?(r.sch_upgrade||0):0,corp=S.corp?(r.sch_corp||0):0;
   const netOnRoad=primary+tcs-exch-scrap-poi-samb-upg-corp;
@@ -763,7 +772,7 @@ function buildQuote(){const r=currentRow();if(!r)return null;const exBase=r.ex;c
   return {quoteNo,date:quoteDateStr,valid:validStr,
     consultant:val('consultant'),consultantPhone:val('consultantPhone'),custName:val('custName'),custPhone:val('custPhone'),
     model:r.modelDisp,variant:r.variant,carName:r.modelDisp+' '+r.variant,fullDesc,specCode:(r.specCode||''),
-    ex:exBase,matteAmt,consumer,netEx,roadtax,roadtaxLabel:rtLabel(rtOv,_ev,_bhVendor,_pr),bhVendor:_bhVendor,ins,insLabel:(insOv?'Manual entry':INS_LBL[S.ins]),
+    ex:exBase,matteAmt,consumer,netEx,roadtax,roadtaxLabel:rtLabel(rtOv,_ev,_bhVendor,_pr),bhVendor:_bhVendor,commOn,commOffer,commPermit,commVltd,ins,insLabel:(insOv?'Manual entry':INS_LBL[S.ins]),
     hypoOn:S.hypo==='Y',hypo,fastagOn:S.fastag!=='N',fastag,fastagLabel:(S.fastag==='AP'?'Annual Pass':'Standard'),sotOn:S.sot==='Y',sot,sotLabel:'5th Yr/60K',
     ewKey:S.ew,ew,ewLabel:S.ew==='4Y'?'4Y/80K':S.ew==='5Y'?'4+5Y/100K':'',acc,accItems:ai.items,
     primary,tcs,exch,scrap,poi,samb,upg,corp,netOnRoad,exchCar,festive,netPayable,compare,protection:_prot,
@@ -797,6 +806,7 @@ function paintQuote(o){
   h+=o.consumer>0?ded('Consumer Offer',o.consumer):line('Consumer Offer','NIL');
   h+=`<tr class="sub"><td>Net Ex-Showroom</td><td class="amt">${fmt(o.netEx)}</td></tr>`;
   h+=line('Road Tax &amp; Registration',fmt(o.roadtax),o.roadtaxLabel);
+  if(o.commOn){h+=line('Offer Letter',fmt(o.commOffer));h+=line('Bengal Permit',fmt(o.commPermit),'5 years');h+=line('VLTD',fmt(o.commVltd));}
   h+=line('Insurance',fmt(o.ins),o.insLabel);
   h+=line('Hypothecation (Finance)',o.hypoOn?fmt(o.hypo):'NIL');
   h+=line('FASTag',o.fastagOn?fmt(o.fastag):'NIL',o.fastagOn?o.fastagLabel:'');
@@ -878,6 +888,7 @@ function waMessage(o,url){
   if(o.matteAmt>0)m+=`Matte Colour: + ${fmt(o.matteAmt)}\n`;
   if(o.consumer>0)m+=`Consumer Offer: \u2013 ${fmt(o.consumer)}\n`;
   m+=`Road Tax (${o.roadtaxLabel}): ${fmt(o.roadtax)}\n`;
+  if(o.commOn){m+=`Offer Letter: ${fmt(o.commOffer)}\nBengal Permit (5 yr): ${fmt(o.commPermit)}\nVLTD: ${fmt(o.commVltd)}\n`;}
   m+=`Insurance (${o.insLabel}): ${fmt(o.ins)}\n`;
   if(o.hypoOn)m+=`Hypothecation: ${fmt(o.hypo)}\n`;
   if(o.fastagOn)m+=`FASTag (${o.fastagLabel}): ${fmt(o.fastag)}\n`;
