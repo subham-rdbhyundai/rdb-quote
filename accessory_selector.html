@@ -65,9 +65,10 @@
 </style>
 </head>
 <body>
-<header>
+<header style="position:relative">
   <h1>RDB Hyundai — Accessory Selector</h1>
   <p>Choose your car, then your accessories. All prices at MRP.</p>
+  <button id="closeEmbed" style="display:none;position:absolute;top:12px;right:12px;background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:8px;padding:8px 13px;font-size:13px;font-weight:bold;cursor:pointer">Close &#10005;</button>
 </header>
 <div class="wrap">
   <div class="seg">
@@ -98,6 +99,7 @@ const CATALOG = {"models": ["Grand i10 Nios", "i20", "i20 N Line", "Aura", "Vern
 const FEATURED = ["Body Styling & Protection", "Basic Accy", "Seat Cover", "Seat Covers", "Garnish", "Comfort Accy", "Electrical"];
 const BUNDLES = [{"name": "Protection Pack", "targets": [["mat"], ["mud", "guard", "flap"], ["body cover", "car cover"], ["door visor", "wind deflector"], ["sill", "scuff"]]}, {"name": "Styling Pack", "targets": [["chrome"], ["garnish"], ["spoiler"], ["alloy"], ["body kit", "cladding"]]}];
 const sel = {};
+const EMBED = /[#&]embed/.test(location.hash||'');
 let mode = 'cust', showAll = false, openCats = {};
 const $ = id => document.getElementById(id);
 const inr = n => 'Rs ' + Math.round(n).toLocaleString('en-IN');
@@ -234,25 +236,16 @@ function buildLines(){
 function addToQuote(){
   const lines=buildLines();
   if(!lines.length){alert('Select at least one accessory first.');return;}
-  // merge with any pending handoff so adding in two batches never loses the first
-  try{
-    var prev=[];try{prev=JSON.parse(localStorage.getItem('rdb_acc_handoff')||'[]');}catch(_){prev=[];}
-    if(!Array.isArray(prev))prev=[];
-    localStorage.setItem('rdb_acc_handoff', JSON.stringify(prev.concat(lines)));
-  }catch(e){}
-  const fromQuote = /[#&]from=quote/.test(location.hash||'');
-  const total=lines.reduce((t,l)=>t+l.amt,0);
-  if(fromQuote){
-    $('result').innerHTML='<div class="result"><b>'+lines.length+' accessory line(s), '+inr(total)+' (MRP)</b> added to your quote.'+
-      '<div style="margin-top:6px">Pick more if you like, then go back to your quote tab to see them.</div>'+
-      '<button class="btn" style="margin-top:10px" id="backBtn">&laquo; Back to my quote</button></div>';
-    var bb=$('backBtn');if(bb)bb.onclick=function(){try{if(window.opener&&!window.opener.closed){window.opener.focus();window.close();return;}}catch(e){}
-      alert('Switch back to your quote tab — the accessories are already added.');};
-  } else {
-    const url='index.html#acc='+b64u(JSON.stringify(lines));
-    $('result').innerHTML='<div class="result"><b>'+lines.length+' accessory line(s), '+inr(total)+' (MRP)</b> ready.'+
-      '<a class="btn" style="margin-top:10px" href="'+url+'">Open the quote with these accessories &raquo;</a></div>';
+  if(EMBED){
+    try{ window.parent.postMessage({type:'rdb_acc',lines:lines}, '*'); }catch(e){}
+    for(const k in sel) delete sel[k];        // clear so nothing can be added twice
+    render();
+    return;                                    // the quote page closes this panel
   }
+  const url='index.html#acc='+b64u(JSON.stringify(lines));
+  const total=lines.reduce((t,l)=>t+l.amt,0);
+  $('result').innerHTML='<div class="result"><b>'+lines.length+' accessory line(s), '+inr(total)+' (MRP)</b> ready.'+
+    '<a class="btn" style="margin-top:10px" href="'+url+'">Open the quote with these accessories &raquo;</a></div>';
   if($('result').scrollIntoView)$('result').scrollIntoView({behavior:'smooth',block:'center'});
 }
 function clearAll(){for(const k in sel)delete sel[k];$('result').innerHTML='';render();}
@@ -264,6 +257,7 @@ function boot(){
   $('mCust').onclick=()=>setMode('cust'); $('mCons').onclick=()=>setMode('cons');
   $('seeall').onclick=()=>{showAll=!showAll;$('seeall').textContent=showAll?'Show featured only':'See all accessories +';render();};
   $('quoteBtn').onclick=addToQuote; $('clearBtn').onclick=clearAll;
+  if(EMBED){var ce=$('closeEmbed');if(ce){ce.style.display='block';ce.onclick=function(){try{window.parent.postMessage({type:'rdb_close'},'*');}catch(e){}};}}
 }
 if(typeof document!=='undefined' && document.getElementById('model')) boot();
 if(typeof module!=='undefined') module.exports={CATALOG,FEATURED,BUNDLES,buildLines,b64u};

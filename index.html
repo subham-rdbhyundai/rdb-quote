@@ -522,7 +522,7 @@ const INFO = {
   ew:{t:"Hyundai Extended Warranty (EW)",h:`Continues your factory warranty after the standard <b>3 yr / 1,00,000 km</b> cover ends, so mechanical &amp; electrical breakdowns stay protected.<p>What's covered</p><ul><li>Repair of major mechanical &amp; electrical parts against breakdown under normal use, with <b>Hyundai genuine parts</b> at authorised workshops</li><li><b>Roadside Assistance (RSA)</b> included</li><li>Transferable to the next owner for the remaining period (helps resale)</li></ul><p>Plan options</p><ul><li>4th Yr / 80K · 5th Yr / 100K</li><li>4th &amp; 5th Yr / 100K · 140K &nbsp;(180K: Prime SD/HB only)</li><li>Longer cover: 4th-7th / 140K · 5th-7th / 140K · 6th &amp; 7th / 140K</li></ul><p>Good to know</p><ul><li>Cover starts when the standard warranty expires; buy within the basic/extended-warranty period</li><li>Does <b>not</b> cover wear-and-tear parts (that's Shield of Trust) or accident damage</li><li>No refund or surrender value; can't be moved to another vehicle; servicing stays with authorised Hyundai</li><li>Priced in three slabs by how long after sale you buy it: <b>within 90 days</b> (cheapest), <b>91\u2013365 days</b>, and <b>over 1 year</b>. The quote shows the within-90-day price and what it would cost later.</li><li><b>Amount shown includes 18% GST.</b></li></ul>`},
   acc:{t:"Accessories",h:`Personalise and protect your Hyundai with genuine accessories.<ul>
     <li>Tick the standard package, or <b>add individual items</b> with prices below</li><li>e.g. floor mats, body cover, mud flaps, seat covers, dash camera, door visors</li>
-    <li>All fitments are <b>Hyundai genuine</b> with applicable warranty</li></ul>`}
+    <li>All fitments are <b>Hyundai genuine</b> with applicable warranty</li></ul><p style="margin:8px 0 0"><b>Standard Accessory Package</b> is the basic accessory kit Hyundai includes with this variant; its price is the amount shown on that line. Anything you add from the picker is extra, over and above this package. For the exact items in the standard package, ask your consultant.</p>`}
 };
 
 /* ===== state ===== */
@@ -946,23 +946,28 @@ function wireEvents(){
   })();
   byId('accAddBtn').addEventListener('click',addAcc);
   /* ===== RDB accessory picker: open picker (new tab) for the chosen car ===== */
-  (function(){var pb=byId('accPickBtn');if(!pb)return;pb.addEventListener('click',function(){
-    var car=(typeof S!=='undefined'&&S.model)?('#car='+encodeURIComponent(S.model)):'';
-    var w=window.open('accessory_selector.html'+car,'_blank');
-    if(!w){window.location.href='accessory_selector.html'+car;}   // fallback if popups blocked
-  });})();
-  /* ===== RDB accessory picker: add picked accessories to the quote ===== */
+  /* ===== RDB accessory picker (opens as an in-page panel, no new tab) ===== */
   function rdbAddAccLines(lines){
     if(!Array.isArray(lines))return;
     if(typeof customAcc==="undefined"||!Array.isArray(customAcc))return;
     var n=0;lines.forEach(function(l){if(l&&l.name&&!isNaN(l.amt)){customAcc.push({name:String(l.name),amt:Number(l.amt),on:true});n++;}});
     if(n){if(typeof renderAcc==="function")renderAcc();if(typeof render==="function")render();if(typeof toast==="function")toast(n+' accessory line(s) added');}
   }
-  /* return path A: picker opened in a new tab hands off via localStorage */
-  (function(){function pull(){try{var h=localStorage.getItem('rdb_acc_handoff');if(!h)return;localStorage.removeItem('rdb_acc_handoff');rdbAddAccLines(JSON.parse(h));}catch(e){}}
-    window.addEventListener('focus',pull);document.addEventListener('visibilitychange',function(){if(!document.hidden)pull();});pull();})();
-  /* return path B: a fresh index.html#acc=... link (e.g. customer-facing) */
-  (function(){try{var m=/[#&]acc=([^&]+)/.exec(location.hash||"");if(!m)return;rdbAddAccLines(JSON.parse(unb64u(m[1])));}catch(e){}})();
+  function rdbOpenPicker(){
+    var f=byId('accFrame'),ov=byId('accOverlay');if(!f||!ov)return;
+    var car=(typeof S!=='undefined'&&S.model)?('&car='+encodeURIComponent(S.model)):'';
+    f.src='accessory_selector.html#embed'+car;
+    ov.style.display='flex';document.body.style.overflow='hidden';
+  }
+  function rdbClosePicker(){var ov=byId('accOverlay');if(ov)ov.style.display='none';var f=byId('accFrame');if(f)f.src='about:blank';document.body.style.overflow='';}
+  (function(){
+    var pb=byId('accPickBtn');if(pb)pb.addEventListener('click',rdbOpenPicker);
+    var cb=byId('accClose');if(cb)cb.addEventListener('click',rdbClosePicker);
+    window.addEventListener('message',function(ev){var m=ev&&ev.data;if(!m||typeof m!=='object')return;
+      if(m.type==='rdb_acc'){rdbAddAccLines(m.lines);rdbClosePicker();}
+      else if(m.type==='rdb_close'){rdbClosePicker();}});
+    try{var mm=/[#&]acc=([^&]+)/.exec(location.hash||"");if(mm)rdbAddAccLines(JSON.parse(unb64u(mm[1])));}catch(e){}
+  })();
   ['roadtax','ins','hypo','fastag'].forEach(function(g){var c=byId('seg_'+g);if(c)c.addEventListener('click',function(e){var b=e.target.closest?e.target.closest('button[data-v]'):null;if(b)setSeg(g,b.getAttribute('data-v'));});});
   var ppe=byId('pp_ew');if(ppe)ppe.addEventListener('change',function(){S.pp.ew=parseInt(this.value,10);render();});
   var pps=byId('pp_sot');if(pps)pps.addEventListener('change',function(){S.pp.sot=parseInt(this.value,10);render();});
@@ -1019,5 +1024,12 @@ function enterReadonly(o){ document.body.classList.add('readonly'); paintQuote(o
 try{ boot(window.__BOOT||{cat:[],hy:'',rd:'',qr:''}); }catch(e){ showLoadError(e); }
 
 </script>
+<div id="accOverlay" style="display:none;position:fixed;inset:0;background:#fff;z-index:99999;flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#002c5f;color:#fff;font-family:Arial,Helvetica,sans-serif">
+    <b style="font-size:15px">Choose accessories</b>
+    <button id="accClose" style="background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:bold;cursor:pointer">Close &#10005;</button>
+  </div>
+  <iframe id="accFrame" title="Accessory selector" style="flex:1;border:0;width:100%;height:100%"></iframe>
+</div>
 </body>
 </html>
