@@ -340,7 +340,7 @@ body.readonly .ro-banner{display:flex}
           <div class="pp-note" id="pp_note"></div></div>
         <div class="field"><div class="labrow"><label style="margin:0">Accessories</label><button class="info-btn" data-info="acc">i</button></div>
           <div class="acc-list" id="accList"></div>
-          <div class="acc-add"><input id="accName" placeholder="Add accessory (e.g. Floor mats)"><input id="accAmt" class="amtin" type="number" min="0" placeholder="₹ amount"><button class="minibtn" id="accAddBtn">+ Add</button></div></div>
+          <div class="acc-add"><input id="accName" placeholder="Add accessory (e.g. Floor mats)"><input id="accAmt" class="amtin" type="number" min="0" placeholder="₹ amount"><button class="minibtn" id="accAddBtn">+ Add</button></div><div style="margin-top:8px"><button type="button" class="minibtn" id="accPickBtn">＋ Choose accessories for this car</button></div></div>
 
         <div class="subhead">③ Offers &amp; Bonuses</div>
         <div class="toggle-grid">
@@ -945,6 +945,24 @@ function wireEvents(){
     cbh.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick(e.target);}});
   })();
   byId('accAddBtn').addEventListener('click',addAcc);
+  /* ===== RDB accessory picker: open picker (new tab) for the chosen car ===== */
+  (function(){var pb=byId('accPickBtn');if(!pb)return;pb.addEventListener('click',function(){
+    var car=(typeof S!=='undefined'&&S.model)?('#car='+encodeURIComponent(S.model)):'';
+    var w=window.open('accessory_selector.html'+car,'_blank');
+    if(!w){window.location.href='accessory_selector.html'+car;}   // fallback if popups blocked
+  });})();
+  /* ===== RDB accessory picker: add picked accessories to the quote ===== */
+  function rdbAddAccLines(lines){
+    if(!Array.isArray(lines))return;
+    if(typeof customAcc==="undefined"||!Array.isArray(customAcc))return;
+    var n=0;lines.forEach(function(l){if(l&&l.name&&!isNaN(l.amt)){customAcc.push({name:String(l.name),amt:Number(l.amt),on:true});n++;}});
+    if(n){if(typeof renderAcc==="function")renderAcc();if(typeof render==="function")render();if(typeof toast==="function")toast(n+' accessory line(s) added');}
+  }
+  /* return path A: picker opened in a new tab hands off via localStorage */
+  (function(){function pull(){try{var h=localStorage.getItem('rdb_acc_handoff');if(!h)return;localStorage.removeItem('rdb_acc_handoff');rdbAddAccLines(JSON.parse(h));}catch(e){}}
+    window.addEventListener('focus',pull);document.addEventListener('visibilitychange',function(){if(!document.hidden)pull();});pull();})();
+  /* return path B: a fresh index.html#acc=... link (e.g. customer-facing) */
+  (function(){try{var m=/[#&]acc=([^&]+)/.exec(location.hash||"");if(!m)return;rdbAddAccLines(JSON.parse(unb64u(m[1])));}catch(e){}})();
   ['roadtax','ins','hypo','fastag'].forEach(function(g){var c=byId('seg_'+g);if(c)c.addEventListener('click',function(e){var b=e.target.closest?e.target.closest('button[data-v]'):null;if(b)setSeg(g,b.getAttribute('data-v'));});});
   var ppe=byId('pp_ew');if(ppe)ppe.addEventListener('change',function(){S.pp.ew=parseInt(this.value,10);render();});
   var pps=byId('pp_sot');if(pps)pps.addEventListener('change',function(){S.pp.sot=parseInt(this.value,10);render();});
