@@ -350,9 +350,9 @@ body.readonly .ro-banner{display:flex}
           <label class="chk" id="chk_sambandh"><input type="checkbox"><span>Rural / Sambandh<small id="amt_sambandh"></small></span></label>
           <label class="chk" id="chk_corp"><input type="checkbox"><span>Corporate<small id="amt_corp"></small></span></label>
           <label class="chk" id="chk_upgrade"><input type="checkbox"><span>Upgrade Bonus<small id="amt_upgrade"></small></span></label>
-          <label class="chk" id="chk_navratri"><input type="checkbox"><span><b>Navratri Booking Bonus</b> <small style="opacity:.75">book by 10 Oct 2026</small><small id="amt_navratri"></small></span></label>
+          <label class="chk" id="chk_navratri"><input type="checkbox"><span><b>Navratri Booking Bonus</b> <small style="opacity:.75">book by 31 Oct 2026</small><small id="amt_navratri"></small></span></label>
         </div>
-        <div class="hint" style="margin-top:8px"><b style="color:#b23b3b">NAVRATRI BOOKING BONUS: BOOK BY 10 OCTOBER 2026, INVOICE BY 31 OCTOBER 2026.</b><br>Note: per Hyundai scheme a customer may avail <b>either</b> Exchange <b>or</b> Scrappage, and only <b>one</b> of Government / Corporate / Rural. Upgrade can be clubbed with these. New offers are off by default — choose what applies to you.</div>
+        <div class="hint" style="margin-top:8px"><b style="color:#b23b3b">NAVRATRI BOOKING BONUS: EXTENDED — BOOK AND INVOICE BY 31 OCTOBER 2026.</b><br>Note: per Hyundai scheme a customer may avail <b>either</b> Exchange <b>or</b> Scrappage, and only <b>one</b> of Government / Corporate / Rural. Upgrade can be clubbed with these. New offers are off by default — choose what applies to you.</div>
         <div class="row2" style="margin-top:12px">
           <div class="field"><label>Exchange Car Value (₹)</label><input id="f_exch" type="number" min="0" value="0"></div>
           <div class="field"><label>Festive Additional Offer (₹)</label><input id="f_festive" type="number" min="0" value="0"></div>
@@ -530,10 +530,10 @@ const INFO = {
 let S={fuel:null,model:null,variant:null,extra:{},tf:'',matte:false,roadtax:'5Y',ins:'B2B',hypo:'Y',fastag:'Y',sot:'N',ew:'N',pp:{ew:-1,sot:-1,ss:-1,bc:-1,bl:-1,cc:-1,rsa:-1},exchange:false,scrap:false,poi:false,sambandh:false,upgrade:false,corp:false,navratri:navOpen()};
 let customAcc=[]; let pkgAccOn=false; let quoteNo='',quoteDateStr='',validStr=''; let lastShareUrl='';
 const ROADTAX_LBL={'5Y':'5 Years','LT':'Lifetime','BH':'BH Series'};
-/* Navratri bonus: bookings till 10 Oct 2026, invoicing till 31 Oct 2026.
+/* Navratri bonus: bookings till 31 Oct 2026 (extended), invoicing till 31 Oct 2026.
    Ticked by default while bookings are still open; after that a consultant
    can still tick it for a booking already made before the cut-off.        */
-var NAV_BOOK_END=new Date(2026,9,10,23,59,59);
+var NAV_BOOK_END=new Date(2026,9,31,23,59,59);   /* extended from 10 Oct */
 function navOpen(){ return new Date()<=NAV_BOOK_END; }
 const INS_LBL={'FAO':'Full Add-on','B2B':'B2B','BASIC':'Basic'};
 
@@ -812,7 +812,7 @@ function paintQuote(o){
   h+=line('Ex-Showroom Price',fmt(o.ex));
   if(o.matteAmt>0)h+=line('Matte Colour',fmt(o.matteAmt),'added to ex-showroom');
   h+=o.consumer>0?ded('Consumer Offer',o.consumer):line('Consumer Offer','NIL');
-  if(o.navratri>0)h+=ded('<b>Navratri Booking Bonus</b> <small>book by 10 Oct 2026</small>',o.navratri);
+  if(o.navratri>0)h+=ded('<b>Navratri Booking Bonus</b> <small>book by 31 Oct 2026</small>',o.navratri);
   h+=`<tr class="sub"><td>Net Ex-Showroom</td><td class="amt">${fmt(o.netEx)}</td></tr>`;
   h+=line('Road Tax &amp; Registration',fmt(o.roadtax),o.roadtaxLabel);
   if(o.commOn){h+=line('Offer Letter',fmt(o.commOffer));h+=line('Bengal Permit',fmt(o.commPermit),'5 years');h+=line('VLTD',fmt(o.commVltd));}
@@ -896,7 +896,7 @@ function waMessage(o,url){
   m+=`Ex-Showroom: ${fmt(o.ex)}\n`;
   if(o.matteAmt>0)m+=`Matte Colour: + ${fmt(o.matteAmt)}\n`;
   if(o.consumer>0)m+=`Consumer Offer: \u2013 ${fmt(o.consumer)}\n`;
-  if(o.navratri>0)m+=`*NAVRATRI BOOKING BONUS (book by 10 Oct 2026):* \u2013 ${fmt(o.navratri)}\n`;
+  if(o.navratri>0)m+=`*NAVRATRI BOOKING BONUS (book by 31 Oct 2026):* \u2013 ${fmt(o.navratri)}\n`;
   m+=`Road Tax (${o.roadtaxLabel}): ${fmt(o.roadtax)}\n`;
   if(o.commOn){m+=`Offer Letter: ${fmt(o.commOffer)}\nBengal Permit (5 yr): ${fmt(o.commPermit)}\nVLTD: ${fmt(o.commVltd)}\n`;}
   m+=`Insurance (${o.insLabel}): ${fmt(o.ins)}\n`;
